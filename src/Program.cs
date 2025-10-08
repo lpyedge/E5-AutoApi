@@ -17,11 +17,7 @@ public class Program
     private static readonly Random _rng = new Random();
     private static Config? _cfg;
     private const string ConfigPath = "Config.json";
-    // private static readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions
-    // {
-    //     PropertyNameCaseInsensitive = true,
-    //     TypeInfoResolver = new DefaultJsonTypeInfoResolver() 
-    // };
+    private static bool loadedFromEnv = false;
 
     public static async Task Main(string[] args)
     {
@@ -37,6 +33,7 @@ public class Program
         OverrideAccountsFromEnvironment(_cfg);
 
         string mode = (args.Length > 0 ? args[0] : "both").Trim().ToLowerInvariant();
+        bool refreshToken = mode is "refresh";
         bool runRead = mode is "read" or "both";
         bool runWrite = mode is "write" or "both";
 
@@ -59,24 +56,37 @@ public class Program
                     "Graph 自動化任務開始",
                     $"帳號 {i + 1} 寫入任務開始於 {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}");
             }
-
-            int rounds = Math.Max(1, _cfg.Run?.Rounds ?? 1);
-            for (int r = 1; r <= rounds; r++)
+            if (refreshToken)
             {
-                Console.WriteLine($"-- Round {r}/{rounds} --");
+                bool ok = await RefreshTokensAsync(_cfg, loadedFromEnv);
+                if (!ok)
+                {
+                    Console.WriteLine(" [FATAL] 刷新 token 過程中發生致命錯誤，請檢查日誌。");
+                    return; // 整個程序退出
+                }
+                // 刷新後不進行其他操作
+                break;
+            }
+            else
+            {
+                int rounds = Math.Max(1, _cfg.Run?.Rounds ?? 1);
+                for (int r = 1; r <= rounds; r++)
+                {
+                    Console.WriteLine($"-- Round {r}/{rounds} --");
 
-                // 每輪隨機選一個前綴
-                string chosenPrefix = PickRandomPrefix(_cfg.Prefixes);
-                Console.WriteLine($" [INFO] 本輪前綴：{chosenPrefix}");
+                    // 每輪隨機選一個前綴
+                    string chosenPrefix = PickRandomPrefix(_cfg.Prefixes);
+                    Console.WriteLine($" [INFO] 本輪前綴：{chosenPrefix}");               
 
-                if (runRead) await RunReadModeAsync(token);
+                    if (runRead) await RunReadModeAsync(token);
 
-                if (runWrite) await RunWriteModeAsync(token, chosenPrefix);
+                    if (runWrite) await RunWriteModeAsync(token, chosenPrefix);
 
-                // 總清理：針對 Prefixes 集合中所有前綴清理殘留
-                await CleanupAllPrefixesAsync(token, _cfg.Prefixes);
+                    // 總清理：針對 Prefixes 集合中所有前綴清理殘留
+                    await CleanupAllPrefixesAsync(token, _cfg.Prefixes);
 
-                if (r < rounds) await DelayAsync(_cfg.Run?.RoundsDelay);
+                    if (r < rounds) await DelayAsync(_cfg.Run?.RoundsDelay);
+                }
             }
 
             if (i < _cfg.Accounts.Count - 1) await DelayAsync(_cfg.Run?.AccountDelay);
@@ -132,6 +142,7 @@ public class Program
                         && !string.IsNullOrWhiteSpace(a.RefreshToken)))
             {
                 cfg.Accounts = list; // 覆蓋配置文件中的 Accounts
+                loadedFromEnv = true;
                 Console.WriteLine($" [INFO] 已從環境變數 ACCOUNTS_JSON 載入 {list.Count} 個帳號。");
             }
             else
@@ -251,7 +262,80 @@ public class Program
     }
 
     // ============== OAuth ==============
+    private static async Task<bool> RefreshTokensAsync(Config cfg, bool loadedFromEnv)
+    {
+        bool anyFatal = false;
+        for (int i = 0; i < cfg.Accounts.Count; i++)
+        {
+            var a = cfg.Accounts[i];
+            try
+            {
+                var body = new FormUrlEncodedContent(new[]
+                {
+                    new KeyValuePair<string,string>("client_id", a.ClientId),
+                    new KeyValuePair<string,string>("client_secret", a.ClientSecret ?? ""),
+                    new KeyValuePair<string,string>("grant_type", "refresh_token"),
+                    new KeyValuePair<string,string>("refresh_token", a.RefreshToken),
+                    // scope 可省略，若需要可加上 .default
+                    // new KeyValuePair<string,string>("scope", "https://graph.microsoft.com/.default"),
+                });
 
+                using var resp = await _http.PostAsync($"https://login.microsoftonline.com/common/oauth2/v2.0/token", body);
+                var txt = await resp.Content.ReadAsStringAsync();
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($" ***ERROR*** 刷新帳號#{i+1} 失敗：{txt}");
+                    // 客戶端機密過期/無效或 refresh token 失效 → 強制失敗
+                    if (txt.Contains("AADSTS7000222") || txt.Contains("AADSTS7000215") || txt.Contains("invalid_grant") || txt.Contains("9002313"))
+                        anyFatal = true; // 需要人工處理
+                    continue;
+                }
+
+                // 使用源生成 Context 解析
+                var token = JsonSerializer.Deserialize<TokenResponse>(txt, ConfigContext.Default.TokenResponse);
+                if (token == null || string.IsNullOrWhiteSpace(token.RefreshToken))
+                {
+                    Console.WriteLine($" ***WARN*** 帳號#{i+1} 未取得新的 refresh_token。");
+                    continue;
+                }
+
+                // 重要：用新 refresh_token 取代舊值（滾動刷新）
+                a.RefreshToken = token.RefreshToken;
+                Console.WriteLine($" [OK] 帳號#{i+1} 已更新 refresh_token（長度 {a.RefreshToken.Length}）。");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($" ***ERROR*** 帳號#{i+1} 刷新例外：{ex.Message}");
+                anyFatal = true;
+            }
+        }
+
+        // 寫回來源
+        if (loadedFromEnv)
+        {
+            var oneLine = JsonSerializer.Serialize(cfg.Accounts, ConfigContext.Default.ListAccountConfig);
+            var path = Path.Combine(Directory.GetCurrentDirectory(), "ACCOUNTS_JSON.new.json");
+            await File.WriteAllTextAsync(path, oneLine, Encoding.UTF8);
+            Console.WriteLine($" [INFO] 已輸出新的 ACCOUNTS_JSON 檔：{path}");
+            Console.WriteLine(" [HINT] 請於後續工作流步驟用 gh secret set ACCOUNTS_JSON < ACCOUNTS_JSON.new.json 進行更新。");
+        }
+        else
+        {
+            var configPath = GetSourceFilePath("Config.json");
+            // 更新整個配置（保證 Accounts 寫回）
+            await File.WriteAllTextAsync(configPath, JsonSerializer.Serialize(cfg, ConfigContext.Default.Config), Encoding.UTF8);
+            Console.WriteLine($" [INFO] 已寫回 Config.json：{configPath}");
+        }
+
+        if (anyFatal)
+        {
+            Console.WriteLine(" ***FATAL*** 偵測到 client secret 過期/無效或 refresh token 失效，請更新機密或重新授權。");
+            Environment.Exit(1); // 讓 GitHub Actions 失敗，提醒人工處理
+        }
+
+        return !anyFatal;
+    }
     private static async Task<string> GetAccessTokenAsync(Config.AccountConfig a)
     {
         try
@@ -1322,7 +1406,13 @@ public partial class Config
     }
 
 
-
+public partial class TokenResponse
+{
+    [JsonPropertyName("access_token")] public string? AccessToken { get; set; }
+    [JsonPropertyName("refresh_token")] public string? RefreshToken { get; set; }
+    [JsonPropertyName("expires_in")] public int ExpiresIn { get; set; }
+    [JsonPropertyName("token_type")] public string? TokenType { get; set; }
+}
 
 
 
@@ -1342,6 +1432,7 @@ public partial class Config
     PropertyNameCaseInsensitive = true,
     WriteIndented = false
 )]
+[JsonSerializable(typeof(TokenResponse))]
 [JsonSerializable(typeof(Config))]
 [JsonSerializable(typeof(List<Config.AccountConfig>))]
 [JsonSerializable(typeof(Config.AccountConfig))]
