@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Runtime.CompilerServices;
 
@@ -16,6 +17,11 @@ public class Program
     private static readonly Random _rng = new Random();
     private static Config? _cfg;
     private const string ConfigPath = "Config.json";
+    private static readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true,
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver() 
+    };
 
     public static async Task Main(string[] args)
     {
@@ -100,10 +106,7 @@ public class Program
         try
         {
             var json = await File.ReadAllTextAsync(configPath, Encoding.UTF8);
-            var cfg = JsonSerializer.Deserialize<Config>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            var cfg = JsonSerializer.Deserialize<Config>(json, _jsonSerializerOptions);
             return cfg;
         }
         catch (Exception ex)
@@ -121,8 +124,7 @@ public class Program
             if (string.IsNullOrWhiteSpace(json))
                 return; // 無環境變數，保持原配置
 
-            var list = JsonSerializer.Deserialize<List<AccountConfig>>(json,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var list = JsonSerializer.Deserialize<List<AccountConfig>>(json, _jsonSerializerOptions);
 
             if (list != null && list.Count > 0 &&
                 list.All(a => !string.IsNullOrWhiteSpace(a.ClientId)
