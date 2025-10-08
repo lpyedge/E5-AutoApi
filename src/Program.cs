@@ -23,7 +23,7 @@ public class Program
         _cfg = await LoadConfigAsync();
         if (_cfg == null)
         {
-            Console.WriteLine(" [ERROR] 無法載入設定，請檢查 config.json。");
+            Console.WriteLine($" [ERROR] 無法載入設定，請檢查 {ConfigPath}。");
             return;
         }
         // 嘗試從環境變量覆蓋賬號
@@ -82,14 +82,15 @@ public class Program
 
     private static async Task<Config?> LoadConfigAsync()
     {
-        if (!File.Exists(ConfigPath))
+        var path = Path.Combine(AppContext.BaseDirectory, ConfigPath);
+        if (!File.Exists(path))
         {
-            Console.WriteLine($" [ERROR] 找不到設定檔：{ConfigPath}");
+            Console.WriteLine($" [ERROR] 找不到設定檔：{path}");
             return null;
         }
         try
         {
-            var json = await File.ReadAllTextAsync(ConfigPath, Encoding.UTF8);
+            var json = await File.ReadAllTextAsync(path, Encoding.UTF8);
             var cfg = JsonSerializer.Deserialize<Config>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
@@ -1310,5 +1311,3 @@ public class Program
 	}
 
 }
-
-
