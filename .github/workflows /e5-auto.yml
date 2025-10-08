@@ -1,7 +1,7 @@
 name: E5 Auto Update
 
 on:
-  workflow_dispatch:
+  #workflow_dispatch:
   schedule:
     - cron: '0 */6 * * *'  # 每6小時執行一次
   watch:
