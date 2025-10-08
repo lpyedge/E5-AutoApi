@@ -17,11 +17,11 @@ public class Program
     private static readonly Random _rng = new Random();
     private static Config? _cfg;
     private const string ConfigPath = "Config.json";
-    private static readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions
-    {
-        PropertyNameCaseInsensitive = true,
-        TypeInfoResolver = new DefaultJsonTypeInfoResolver() 
-    };
+    // private static readonly JsonSerializerOptions _jsonSerializerOptions = new JsonSerializerOptions
+    // {
+    //     PropertyNameCaseInsensitive = true,
+    //     TypeInfoResolver = new DefaultJsonTypeInfoResolver() 
+    // };
 
     public static async Task Main(string[] args)
     {
@@ -49,18 +49,18 @@ public class Program
             if (string.IsNullOrWhiteSpace(token))
             {
                 Console.WriteLine(" [ERROR] 無法取得 access_token，略過此帳號。");
-                await DelayAsync(_cfg.RunConfig?.AccountDelay);
+                await DelayAsync(_cfg.Run?.AccountDelay);
                 continue;
             }
 
-            if (runWrite && !string.IsNullOrWhiteSpace(_cfg.NotificationConfig?.Email?.ToAddress))
+            if (runWrite && !string.IsNullOrWhiteSpace(_cfg.Notification?.Email?.ToAddress))
             {
-                _ = SendEmailAsync(token, _cfg.NotificationConfig.Email.ToAddress!,
+                _ = SendEmailAsync(token, _cfg.Notification.Email.ToAddress!,
                     "Graph 自動化任務開始",
                     $"帳號 {i + 1} 寫入任務開始於 {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}");
             }
 
-            int rounds = Math.Max(1, _cfg.RunConfig?.Rounds ?? 1);
+            int rounds = Math.Max(1, _cfg.Run?.Rounds ?? 1);
             for (int r = 1; r <= rounds; r++)
             {
                 Console.WriteLine($"-- Round {r}/{rounds} --");
@@ -76,21 +76,21 @@ public class Program
                 // 總清理：針對 Prefixes 集合中所有前綴清理殘留
                 await CleanupAllPrefixesAsync(token, _cfg.Prefixes);
 
-                if (r < rounds) await DelayAsync(_cfg.RunConfig?.RoundsDelay);
+                if (r < rounds) await DelayAsync(_cfg.Run?.RoundsDelay);
             }
 
-            if (i < _cfg.Accounts.Count - 1) await DelayAsync(_cfg.RunConfig?.AccountDelay);
+            if (i < _cfg.Accounts.Count - 1) await DelayAsync(_cfg.Run?.AccountDelay);
         }
 
         Console.WriteLine("All done.");
     }
 
     // ============== Config ==============
-    static string GetSourceFilePath(string fileName, 
+    static string GetSourceFilePath(string fileName,
         [CallerFilePath] string sourceFile = "")
     {
         return Path.Combine(
-            Path.GetDirectoryName(sourceFile) ?? "", 
+            Path.GetDirectoryName(sourceFile) ?? "",
             fileName
         );
     }
@@ -106,7 +106,7 @@ public class Program
         try
         {
             var json = await File.ReadAllTextAsync(configPath, Encoding.UTF8);
-            var cfg = JsonSerializer.Deserialize<Config>(json, _jsonSerializerOptions);
+            var cfg = JsonSerializer.Deserialize<Config>(json, ConfigContext.Default.Options);
             return cfg;
         }
         catch (Exception ex)
@@ -124,7 +124,7 @@ public class Program
             if (string.IsNullOrWhiteSpace(json))
                 return; // 無環境變數，保持原配置
 
-            var list = JsonSerializer.Deserialize<List<AccountConfig>>(json, _jsonSerializerOptions);
+            var list = JsonSerializer.Deserialize<List<Config.AccountConfig>>(json, ConfigContext.Default.Options);
 
             if (list != null && list.Count > 0 &&
                 list.All(a => !string.IsNullOrWhiteSpace(a.ClientId)
@@ -143,84 +143,6 @@ public class Program
         {
             Console.WriteLine($" [WARN] 解析 ACCOUNTS_JSON 失敗：{ex.Message}，忽略覆蓋。");
         }
-    }
-
-    public class Config
-    {
-        public List<AccountConfig> Accounts { get; set; } = new();
-        public List<string> Prefixes { get; set; } = new() { "CYKJ" };
-        public AssetsConfig? Assets { get; set; }
-        public NotificationConfig? NotificationConfig { get; set; }
-        public RunConfig? RunConfig { get; set; }
-        public FeaturesConfig? Features { get; set; }
-    }
-
-    public class AccountConfig
-    {
-        public string ClientId { get; set; } = "";
-        public string ClientSecret { get; set; } = "";
-        public string RefreshToken { get; set; } = "";
-    }
-
-    public class AssetsConfig
-    {
-        public ExcelAssets? Excel { get; set; }
-    }
-
-    public class ExcelAssets
-    {
-        public string? MinimalWorkbookBase64 { get; set; }
-    }
-
-    public class NotificationConfig
-    {
-        public EmailConfig? Email { get; set; }
-    }
-
-    public class EmailConfig
-    {
-        public string? ToAddress { get; set; }
-    }
-
-    public class RunConfig
-    {
-        public int Rounds { get; set; } = 1;
-        public DelayConfig? ApiDelay { get; set; }
-        public DelayConfig? RoundsDelay { get; set; }
-        public DelayConfig? AccountDelay { get; set; }
-    }
-
-    public class DelayConfig
-    {
-        public bool Enabled { get; set; }
-        public int MinSeconds { get; set; }
-        public int MaxSeconds { get; set; }
-    }
-
-    public class FeaturesConfig
-    {
-        public ReadFeatures? Read { get; set; }
-        public WriteFeatures? Write { get; set; }
-    }
-
-    public class ReadFeatures
-    {
-        public bool UseExtendedApis { get; set; } = true;
-    }
-
-    public class WriteFeatures
-    {
-        public bool UploadRandomFile { get; set; } = true;
-        public bool Excel { get; set; } = true;
-        public bool Todo { get; set; } = true;
-        public bool CalendarEvent { get; set; } = true;
-        public bool Contacts { get; set; } = true;
-        public bool MailDraft { get; set; } = true;
-        public bool MailFolder { get; set; } = true;
-        public bool MailRule { get; set; } = true;
-        public bool OneNotePage { get; set; } = true;
-        public bool DriveFolderWithShareLink { get; set; } = true;
-        public bool UserOpenExtension { get; set; } = true;
     }
 
     // ============== Endpoints ==============
@@ -330,7 +252,7 @@ public class Program
 
     // ============== OAuth ==============
 
-    private static async Task<string> GetAccessTokenAsync(AccountConfig a)
+    private static async Task<string> GetAccessTokenAsync(Config.AccountConfig a)
     {
         try
         {
@@ -371,7 +293,7 @@ public class Program
         foreach (var url in endpoints)
         {
             if (await TryGetAsync(url, token)) ok++; else fail++;
-            await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+            await DelayAsync(_cfg?.Run?.ApiDelay);
         }
         Console.WriteLine($" [INFO] Read 模式完成，成功 {ok}，失敗 {fail}。");
     }
@@ -411,44 +333,44 @@ public class Program
             {
                 Console.WriteLine($" [WARN] GET {url} 例外：{ex.Message}，嘗試重試。");
             }
-            await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+            await DelayAsync(_cfg?.Run?.ApiDelay);
         }
         return false;
     }
 
     // ============== Write ==============
-	private static async Task SendEmailAsync(string token, string to, string subject, string body)
-	{
-		var payload = new
-		{
-			message = new
-			{
-				subject,
-				body = new { contentType = "Text", content = body },
-				toRecipients = new[]
-				{
-					new { emailAddress = new { address = to } }
-				}
-			},
-			saveToSentItems = false
-		};
+    private static async Task SendEmailAsync(string token, string to, string subject, string body)
+    {
+        var payload = new
+        {
+            message = new
+            {
+                subject,
+                body = new { contentType = "Text", content = body },
+                toRecipients = new[]
+                {
+                    new { emailAddress = new { address = to } }
+                }
+            },
+            saveToSentItems = false
+        };
 
-		using var req = new HttpRequestMessage(HttpMethod.Post, EP.SendMail);
-		req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-		req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+        using var req = new HttpRequestMessage(HttpMethod.Post, EP.SendMail);
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
-		using var resp = await _http.SendAsync(req);
-		if (!resp.IsSuccessStatusCode)
-		{
-			var text = await resp.Content.ReadAsStringAsync();
-			Console.WriteLine($" [WARN] 發送郵件失敗：{resp.StatusCode} {text}");
-		}
-	}
+        using var resp = await _http.SendAsync(req);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var text = await resp.Content.ReadAsStringAsync();
+            Console.WriteLine($" [WARN] 發送郵件失敗：{resp.StatusCode} {text}");
+        }
+    }
     private static async Task RunWriteModeAsync(string token, string prefix)
     {
         Console.WriteLine(" [INFO] Write 模式開始。");
 
-        var wf = _cfg?.Features?.Write ?? new Program.WriteFeatures();
+        var wf = _cfg?.Features?.Write ?? new Config.FeaturesConfig.WriteFeatures();
 
         var ops = new List<Func<string, string, Task>>
         {
@@ -475,7 +397,7 @@ public class Program
         {
             try { await op(token, prefix); }
             catch (Exception ex) { Console.WriteLine($" [ERROR] 寫入操作例外：{ex.Message}"); }
-            await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+            await DelayAsync(_cfg?.Run?.ApiDelay);
         }
 
         Console.WriteLine(" [INFO] Write 模式完成。");
@@ -522,7 +444,7 @@ public class Program
         try { bytes = Convert.FromBase64String(base64); }
         catch { Console.WriteLine(" [WARN] Excel 樣板 Base64 無效，略過。"); return; }
 
-        var name = $"{prefix}_{DateTimeOffset.Now:yyyyMMdd_HHmmss}_{_rng.Next(1000,9999)}.xlsx";
+        var name = $"{prefix}_{DateTimeOffset.Now:yyyyMMdd_HHmmss}_{_rng.Next(1000, 9999)}.xlsx";
 
         // 上傳工作簿
         string? itemId = null;
@@ -541,7 +463,7 @@ public class Program
 
         try
         {
-            await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+            await DelayAsync(_cfg?.Run?.ApiDelay);
 
             // 建立工作表
             var wsName = "SheetCYKJ";
@@ -554,7 +476,7 @@ public class Program
                 if (!wsResp.IsSuccessStatusCode) { Console.WriteLine($" [FAIL] 建立工作表失敗：{wsResp.StatusCode}"); return; }
             }
 
-            await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+            await DelayAsync(_cfg?.Run?.ApiDelay);
 
             // 建立表格
             var tblBody = JsonSerializer.Serialize(new { address = "SheetCYKJ!A1:B1", hasHeaders = true });
@@ -571,7 +493,7 @@ public class Program
                 if (string.IsNullOrWhiteSpace(tableId)) { Console.WriteLine(" [FAIL] 表格回應無 id。"); return; }
             }
 
-            await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+            await DelayAsync(_cfg?.Run?.ApiDelay);
 
             // 寫入資料列
             var rowsPayload = new
@@ -641,7 +563,7 @@ public class Program
         string? eventId = null;
         try
         {
-            var subject = $"{prefix}_Event_{_rng.Next(10000,99999)}";
+            var subject = $"{prefix}_Event_{_rng.Next(10000, 99999)}";
             var start = DateTimeOffset.Now.AddMinutes(5).ToUniversalTime();
             var end = start.AddMinutes(30);
             var body = new
@@ -677,7 +599,7 @@ public class Program
         string? id = null;
         try
         {
-            var displayName = $"{prefix}_Contact_{_rng.Next(10000,99999)}";
+            var displayName = $"{prefix}_Contact_{_rng.Next(10000, 99999)}";
             var body = new { displayName, givenName = prefix, emailAddresses = new[] { new { address = "foo@example.com", name = "Foo" } } };
             using var req = new HttpRequestMessage(HttpMethod.Post, EP.Contacts);
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -705,7 +627,7 @@ public class Program
         string? id = null;
         try
         {
-            var subject = $"{prefix}_Draft_{_rng.Next(10000,99999)}";
+            var subject = $"{prefix}_Draft_{_rng.Next(10000, 99999)}";
             var body = new { subject, body = new { contentType = "Text", content = "Draft content" }, toRecipients = new object[] { } };
             using var req = new HttpRequestMessage(HttpMethod.Post, EP.CreateMessage);
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -733,7 +655,7 @@ public class Program
         string? id = null;
         try
         {
-            var name = $"{prefix}_Folder_{_rng.Next(10000,99999)}";
+            var name = $"{prefix}_Folder_{_rng.Next(10000, 99999)}";
             var body = new { displayName = name };
             using var req = new HttpRequestMessage(HttpMethod.Post, EP.MailFolders);
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -761,7 +683,7 @@ public class Program
         string? id = null;
         try
         {
-            var displayName = $"{prefix}_Rule_{_rng.Next(10000,99999)}";
+            var displayName = $"{prefix}_Rule_{_rng.Next(10000, 99999)}";
             var body = new
             {
                 displayName,
@@ -795,8 +717,8 @@ public class Program
         string? id = null;
         try
         {
-           	var title = $"{prefix}_OneNote_{_rng.Next(10000,99999)}";
-			var html = $"<html><head><title>{System.Net.WebUtility.HtmlEncode(title)}</title></head><body><p>Created at {DateTimeOffset.Now:o}</p></body></html>";
+            var title = $"{prefix}_OneNote_{_rng.Next(10000, 99999)}";
+            var html = $"<html><head><title>{System.Net.WebUtility.HtmlEncode(title)}</title></head><body><p>Created at {DateTimeOffset.Now:o}</p></body></html>";
             using var req = new HttpRequestMessage(HttpMethod.Post, EP.OneNotePages);
             req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             req.Content = new StringContent(html, Encoding.UTF8, "application/xhtml+xml");
@@ -824,13 +746,13 @@ public class Program
         try
         {
             // 建立資料夾
-            var folderName = $"{prefix}_Dir_{_rng.Next(10000,99999)}";
+            var folderName = $"{prefix}_Dir_{_rng.Next(10000, 99999)}";
             var body = new Dictionary<string, object>
-			{
-				["name"] = folderName,
-				["folder"] = new Dictionary<string, object>(),
-				["@microsoft.graph.conflictBehavior"] = "rename"
-			};
+            {
+                ["name"] = folderName,
+                ["folder"] = new Dictionary<string, object>(),
+                ["@microsoft.graph.conflictBehavior"] = "rename"
+            };
             using (var req = new HttpRequestMessage(HttpMethod.Post, EP.CreateFolderUnderRoot))
             {
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -843,10 +765,10 @@ public class Program
                 if (string.IsNullOrWhiteSpace(folderId)) { Console.WriteLine(" [FAIL] 資料夾回應無 id"); return; }
             }
 
-            await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+            await DelayAsync(_cfg?.Run?.ApiDelay);
 
             // 上傳檔案到資料夾
-            var fileName = $"{prefix}_Inner_{_rng.Next(10000,99999)}.txt";
+            var fileName = $"{prefix}_Inner_{_rng.Next(10000, 99999)}.txt";
             using (var uReq = new HttpRequestMessage(HttpMethod.Put, EP.UploadUnderItem(folderId!, fileName)))
             {
                 uReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -857,7 +779,7 @@ public class Program
                 if (!uResp.IsSuccessStatusCode) { Console.WriteLine($" [WARN] 上傳子檔案失敗：{uResp.StatusCode}"); }
             }
 
-            await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+            await DelayAsync(_cfg?.Run?.ApiDelay);
 
             // 建立分享連結，然後刪除該權限
             string? permId = null;
@@ -898,16 +820,16 @@ public class Program
 
     private static async Task UserOpenExtensionRoundtripAsync(string token, string prefix)
     {
-        string name = $"{prefix}.meta.{_rng.Next(10000,99999)}";
+        string name = $"{prefix}.meta.{_rng.Next(10000, 99999)}";
         try
         {
             var payload = new Dictionary<string, object>
-			{
-				["@odata.type"] = "microsoft.graph.openTypeExtension",
-				["extensionName"] = name,
-				["foo"] = "bar",
-				["createdAt"] = DateTimeOffset.Now.ToString("o")
-			};
+            {
+                ["@odata.type"] = "microsoft.graph.openTypeExtension",
+                ["extensionName"] = name,
+                ["foo"] = "bar",
+                ["createdAt"] = DateTimeOffset.Now.ToString("o")
+            };
             using (var cReq = new HttpRequestMessage(HttpMethod.Post, EP.UserExtensions))
             {
                 cReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
@@ -982,13 +904,13 @@ public class Program
                 using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.DeleteDriveItem(id!));
                 dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(dReq);
-                await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+                await DelayAsync(_cfg?.Run?.ApiDelay);
             }
         }
         catch (Exception ex) { Console.WriteLine($" [WARN] 清理 Drive 例外：{ex.Message}"); }
     }
 
-       private static async Task CleanupTodoListsByPrefixesAsync(string token, List<string> prefixes)
+    private static async Task CleanupTodoListsByPrefixesAsync(string token, List<string> prefixes)
     {
         try
         {
@@ -1012,7 +934,7 @@ public class Program
                 using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.TodoListById(id!));
                 dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(dReq);
-                await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+                await DelayAsync(_cfg?.Run?.ApiDelay);
             }
         }
         catch (Exception ex)
@@ -1046,7 +968,7 @@ public class Program
                 using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.EventById(id!));
                 dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(dReq);
-                await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+                await DelayAsync(_cfg?.Run?.ApiDelay);
             }
         }
         catch (Exception ex)
@@ -1058,41 +980,41 @@ public class Program
     private static async Task CleanupContactsByPrefixesAsync(string token, List<string> prefixes)
     {
         try
-		{
-			string? url = $"{EP.Contacts}?$top=50";
-			while (!string.IsNullOrWhiteSpace(url))
-			{
-				using var req = new HttpRequestMessage(HttpMethod.Get, url);
-				req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-				using var resp = await _http.SendAsync(req);
-				var text = await resp.Content.ReadAsStringAsync();
-				if (!resp.IsSuccessStatusCode) break;
+        {
+            string? url = $"{EP.Contacts}?$top=50";
+            while (!string.IsNullOrWhiteSpace(url))
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                using var resp = await _http.SendAsync(req);
+                var text = await resp.Content.ReadAsStringAsync();
+                if (!resp.IsSuccessStatusCode) break;
 
-				using var doc = JsonDocument.Parse(text);
-				if (doc.RootElement.TryGetProperty("value", out var arr))
-				{
-					foreach (var v in arr.EnumerateArray())
-					{
-						string name = v.TryGetProperty("displayName", out var np) ? (np.GetString() ?? "") : "";
-						if (!StartsWithAny(name, prefixes)) continue;
-						string? id = v.TryGetProperty("id", out var ip) ? ip.GetString() : null;
-						if (string.IsNullOrWhiteSpace(id)) continue;
+                using var doc = JsonDocument.Parse(text);
+                if (doc.RootElement.TryGetProperty("value", out var arr))
+                {
+                    foreach (var v in arr.EnumerateArray())
+                    {
+                        string name = v.TryGetProperty("displayName", out var np) ? (np.GetString() ?? "") : "";
+                        if (!StartsWithAny(name, prefixes)) continue;
+                        string? id = v.TryGetProperty("id", out var ip) ? ip.GetString() : null;
+                        if (string.IsNullOrWhiteSpace(id)) continue;
 
-						using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.ContactById(id!));
-						dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-						await _http.SendAsync(dReq);
-						await DelayAsync(_cfg?.RunConfig?.ApiDelay);
-					}
-				}
+                        using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.ContactById(id!));
+                        dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                        await _http.SendAsync(dReq);
+                        await DelayAsync(_cfg?.Run?.ApiDelay);
+                    }
+                }
 
-				// 處理分頁
-				url = doc.RootElement.TryGetProperty("@odata.nextLink", out var link) ? link.GetString() : null;
-			}
-		}
-		catch (Exception ex)
-		{
-			Console.WriteLine($" [WARN] 清理 Contacts 例外：{ex.Message}");
-		}
+                // 處理分頁
+                url = doc.RootElement.TryGetProperty("@odata.nextLink", out var link) ? link.GetString() : null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($" [WARN] 清理 Contacts 例外：{ex.Message}");
+        }
     }
 
     private static async Task CleanupMailDraftsByPrefixesAsync(string token, List<string> prefixes)
@@ -1120,7 +1042,7 @@ public class Program
                 using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.MessageById(id!));
                 dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(dReq);
-                await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+                await DelayAsync(_cfg?.Run?.ApiDelay);
             }
         }
         catch (Exception ex)
@@ -1153,7 +1075,7 @@ public class Program
                 using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.MailFolderById(id!));
                 dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(dReq);
-                await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+                await DelayAsync(_cfg?.Run?.ApiDelay);
             }
         }
         catch (Exception ex)
@@ -1186,7 +1108,7 @@ public class Program
                 using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.InboxRuleById(id!));
                 dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(dReq);
-                await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+                await DelayAsync(_cfg?.Run?.ApiDelay);
             }
         }
         catch (Exception ex)
@@ -1219,7 +1141,7 @@ public class Program
                 using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.OneNotePageById(id!));
                 dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(dReq);
-                await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+                await DelayAsync(_cfg?.Run?.ApiDelay);
             }
         }
         catch (Exception ex)
@@ -1252,7 +1174,7 @@ public class Program
                 using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.UserExtensionByName(key));
                 dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(dReq);
-                await DelayAsync(_cfg?.RunConfig?.ApiDelay);
+                await DelayAsync(_cfg?.Run?.ApiDelay);
             }
         }
         catch (Exception ex)
@@ -1262,35 +1184,35 @@ public class Program
     }
 
     // ============== Helpers ==============
-	private static void Shuffle<T>(IList<T> list)
-	{
-		for (int i = list.Count - 1; i > 0; i--)
-		{
-			int j = _rng.Next(i + 1);
-			(list[i], list[j]) = (list[j], list[i]);
-		}
-	}
-	
-    private static int GetRetryAfterSeconds(HttpResponseMessage resp)
-	{
-		try
-		{
-			if (resp.Headers.RetryAfter != null)
-			{
-				if (resp.Headers.RetryAfter.Delta.HasValue)
-					return Math.Max(1, (int)resp.Headers.RetryAfter.Delta.Value.TotalSeconds);
+    private static void Shuffle<T>(IList<T> list)
+    {
+        for (int i = list.Count - 1; i > 0; i--)
+        {
+            int j = _rng.Next(i + 1);
+            (list[i], list[j]) = (list[j], list[i]);
+        }
+    }
 
-				if (resp.Headers.RetryAfter.Date.HasValue)
-				{
-					var delta = resp.Headers.RetryAfter.Date.Value - DateTimeOffset.Now;
-					return Math.Max(1, (int)delta.TotalSeconds);
-				}
-			}
-		}
-		catch { }
-		// default fallback
-		return 5;
-	}
+    private static int GetRetryAfterSeconds(HttpResponseMessage resp)
+    {
+        try
+        {
+            if (resp.Headers.RetryAfter != null)
+            {
+                if (resp.Headers.RetryAfter.Delta.HasValue)
+                    return Math.Max(1, (int)resp.Headers.RetryAfter.Delta.Value.TotalSeconds);
+
+                if (resp.Headers.RetryAfter.Date.HasValue)
+                {
+                    var delta = resp.Headers.RetryAfter.Date.Value - DateTimeOffset.Now;
+                    return Math.Max(1, (int)delta.TotalSeconds);
+                }
+            }
+        }
+        catch { }
+        // default fallback
+        return 5;
+    }
 
     private static bool StartsWithAny(string text, IEnumerable<string> prefixes)
     {
@@ -1310,15 +1232,128 @@ public class Program
         return prefixes[idx];
     }
 
-    private static Task DelayAsync(DelayConfig? delay)
-	{
-		if (delay is null || !delay.Enabled)
-			return Task.CompletedTask;
+    private static Task DelayAsync(Config.RunConfig.DelayConfig? delay)
+    {
+        if (delay is null || !delay.Enabled)
+            return Task.CompletedTask;
 
-		int min = Math.Max(0, delay.MinSeconds);
-		int max = Math.Max(min, delay.MaxSeconds);
-		int secs = (min == max) ? min : _rng.Next(min, max + 1);
-		return Task.Delay(TimeSpan.FromSeconds(secs));
-	}
+        int min = Math.Max(0, delay.MinSeconds);
+        int max = Math.Max(min, delay.MaxSeconds);
+        int secs = (min == max) ? min : _rng.Next(min, max + 1);
+        return Task.Delay(TimeSpan.FromSeconds(secs));
+    }
 
+
+}
+
+
+public partial class Config
+{
+    public List<Config.AccountConfig> Accounts { get; set; } = new();
+    public List<string> Prefixes { get; set; } = new() { "CYKJ" };
+    public Config.AssetsConfig? Assets { get; set; }
+    public Config.NotificationConfig? Notification { get; set; }
+    public Config.RunConfig? Run { get; set; }
+    public Config.FeaturesConfig? Features { get; set; }
+
+    public partial class AccountConfig
+    {
+        public string ClientId { get; set; } = "";
+        public string ClientSecret { get; set; } = "";
+        public string RefreshToken { get; set; } = "";
+    }
+    public partial class AssetsConfig
+    {
+        public AssetsConfig.ExcelAssets? Excel { get; set; }
+        public partial class ExcelAssets
+        {
+            public string? MinimalWorkbookBase64 { get; set; }
+        }
+    }
+    public partial class NotificationConfig
+    {
+        public NotificationConfig.EmailConfig? Email { get; set; }
+
+        public partial class EmailConfig
+        {
+            public string? ToAddress { get; set; }
+        }
+    }
+
+
+    public partial class RunConfig
+    {
+        public int Rounds { get; set; } = 1;
+        public RunConfig.DelayConfig? ApiDelay { get; set; }
+        public RunConfig.DelayConfig? RoundsDelay { get; set; }
+        public RunConfig.DelayConfig? AccountDelay { get; set; }
+        public partial class DelayConfig
+        {
+            public bool Enabled { get; set; }
+            public int MinSeconds { get; set; }
+            public int MaxSeconds { get; set; }
+        }
+
+    }
+    public partial class FeaturesConfig
+{
+    public FeaturesConfig.ReadFeatures? Read { get; set; }
+    public FeaturesConfig.WriteFeatures? Write { get; set; }
+        public partial class ReadFeatures
+    {
+        public bool UseExtendedApis { get; set; } = true;
+    }
+
+    public partial class WriteFeatures
+    {
+        public bool UploadRandomFile { get; set; } = true;
+        public bool Excel { get; set; } = true;
+        public bool Todo { get; set; } = true;
+        public bool CalendarEvent { get; set; } = true;
+        public bool Contacts { get; set; } = true;
+        public bool MailDraft { get; set; } = true;
+        public bool MailFolder { get; set; } = true;
+        public bool MailRule { get; set; } = true;
+        public bool OneNotePage { get; set; } = true;
+        public bool DriveFolderWithShareLink { get; set; } = true;
+        public bool UserOpenExtension { get; set; } = true;
+    }
+    }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
+
+
+// ============== JSON Source Generator Context ==============
+[JsonSourceGenerationOptions(
+    PropertyNameCaseInsensitive = true,
+    WriteIndented = false
+)]
+[JsonSerializable(typeof(Config))]
+[JsonSerializable(typeof(List<Config.AccountConfig>))]
+[JsonSerializable(typeof(Config.AccountConfig))]
+[JsonSerializable(typeof(Config.AssetsConfig))]
+[JsonSerializable(typeof(Config.AssetsConfig.ExcelAssets))]
+[JsonSerializable(typeof(Config.NotificationConfig))]
+[JsonSerializable(typeof(Config.NotificationConfig.EmailConfig))]
+[JsonSerializable(typeof(Config.RunConfig))]
+[JsonSerializable(typeof(Config.RunConfig.DelayConfig))]
+[JsonSerializable(typeof(Config.FeaturesConfig))]
+[JsonSerializable(typeof(Config.FeaturesConfig.ReadFeatures))]
+[JsonSerializable(typeof(Config.FeaturesConfig.WriteFeatures))]
+internal partial class ConfigContext : JsonSerializerContext
+{
 }
