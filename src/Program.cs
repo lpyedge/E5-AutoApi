@@ -79,18 +79,26 @@ public class Program
     }
 
     // ============== Config ==============
+    static string GetSourceFilePath(string fileName, 
+        [CallerFilePath] string sourceFile = "")
+    {
+        return Path.Combine(
+            Path.GetDirectoryName(sourceFile) ?? "", 
+            fileName
+        );
+    }
 
     private static async Task<Config?> LoadConfigAsync()
     {
-        var path = Path.Combine(AppContext.BaseDirectory, ConfigPath);
-        if (!File.Exists(path))
+        var configPath = GetSourceFilePath(ConfigPath);
+        if (!File.Exists(configPath))
         {
-            Console.WriteLine($" [ERROR] 找不到設定檔：{path}");
+            Console.WriteLine($" [ERROR] 找不到設定檔：{configPath}");
             return null;
         }
         try
         {
-            var json = await File.ReadAllTextAsync(path, Encoding.UTF8);
+            var json = await File.ReadAllTextAsync(configPath, Encoding.UTF8);
             var cfg = JsonSerializer.Deserialize<Config>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
