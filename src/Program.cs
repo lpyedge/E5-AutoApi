@@ -14,7 +14,7 @@ public class Program
     private static readonly HttpClient _http = new HttpClient();
     private static readonly Random _rng = new Random();
     private static Config? _cfg;
-    private const string ConfigPath = "config.json";
+    private const string ConfigPath = "Config.json";
 
     public static async Task Main(string[] args)
     {
@@ -1310,4 +1310,5 @@ public class Program
 	}
 
 }
+
 
