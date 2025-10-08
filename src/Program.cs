@@ -111,7 +111,7 @@ public class Program
             if (string.IsNullOrWhiteSpace(json))
                 return; // 無環境變數，保持原配置
 
-            var list = JsonSerializer.Deserialize<List<Config.AccountConfig>>(json,
+            var list = JsonSerializer.Deserialize<List<AccountConfig>>(json,
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (list != null && list.Count > 0 &&
@@ -1310,3 +1310,4 @@ public class Program
 	}
 
 }
+
