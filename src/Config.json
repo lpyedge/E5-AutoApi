@@ -38,7 +38,8 @@
       "MailRule": true,
       "OneNotePage": true,
       "DriveFolderWithShareLink": true,
-      "UserOpenExtension": true
+      "UserOpenExtension": true,
+      "GroupJoin": true
     }
   }
 }
