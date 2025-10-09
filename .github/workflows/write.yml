@@ -1,4 +1,4 @@
-name: E5 Auto Update
+name: write
 
 on:
   workflow_dispatch:
