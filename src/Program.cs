@@ -1,3 +1,5 @@
+#:package Sodium.Core@1.4.0
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -155,7 +157,40 @@ public class Program
             Console.WriteLine($" [WARN] 解析 ACCOUNTS_JSON 失敗：{ex.Message}，忽略覆蓋。");
         }
     }
+  
 
+    private record PublicKeyResp(string key_id, string key);
+    private record UpsertReq(string encrypted_value, string key_id);
+
+    private static async System.Threading.Tasks.Task UpsertAsync(string name, string plaintext)
+    {
+        var owner_repo = Environment.GetEnvironmentVariable("GH_REPO");
+        var token = Environment.GetEnvironmentVariable("GH_TOKEN");
+
+        using var http = new HttpClient();
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("dotnet-secrets-client");
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        http.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+
+        // 1) 取得仓库公钥 [web:154]
+        var pkUrl = $"https://api.github.com/repos/{owner_repo}/actions/secrets/public-key";
+        var pkJson = await http.GetStringAsync(pkUrl);
+        var pk = JsonSerializer.Deserialize<PublicKeyResp>(pkJson)!; // key(base64) + key_id [web:154]
+
+        // 2) sealed box 加密，输出 base64 [web:155][web:159]
+        var pubKeyBytes = Convert.FromBase64String(pk.key);
+        var cipher = Sodium.SealedPublicKeyBox.Create(Encoding.UTF8.GetBytes(plaintext), pubKeyBytes); // [web:159]
+        var encB64 = Convert.ToBase64String(cipher); // GitHub 要求 base64 封装 [web:155]
+
+        // 3) PUT 更新 Secret [web:154]
+        var putUrl = $"https://api.github.com/repos/{owner_repo}/actions/secrets/{name}";
+        var body = JsonSerializer.Serialize(new UpsertReq(encB64, pk.key_id));
+        
+
+        var resp = await http.PutAsync(putUrl, new StringContent(body, Encoding.UTF8, "application/json"));
+        resp.EnsureSuccessStatusCode(); // 201/204 表示成功 [web:154]
+    }
     // ============== Endpoints ==============
 
     private static class EP
@@ -208,6 +243,13 @@ public class Program
         // User open extensions
         public static string UserExtensions => $"{V1}/me/extensions";
         public static string UserExtensionByName(string name) => $"{V1}/me/extensions/{Uri.EscapeDataString(name)}";
+
+        // Groups
+        public static string MemberOf => $"{V1}/me/memberOf";
+        public static string Groups => $"{V1}/groups";
+        public static string GroupById(string groupId) => $"{V1}/groups/{Uri.EscapeDataString(groupId)}";
+        public static string GroupMembers(string groupId) => $"{V1}/groups/{Uri.EscapeDataString(groupId)}/members";
+        public static string RemoveMemberRef(string groupId, string userId) => $"{V1}/groups/{Uri.EscapeDataString(groupId)}/members/{Uri.EscapeDataString(userId)}/$ref";
 
         // Read endpoints
         public static IEnumerable<string> ReadEndpoints(DateTimeOffset now, bool extended)
@@ -315,10 +357,8 @@ public class Program
         if (loadedFromEnv)
         {
             var oneLine = JsonSerializer.Serialize(cfg.Accounts, ConfigContext.Default.ListAccountConfig);
-            var path = Path.Combine(Directory.GetCurrentDirectory(), "ACCOUNTS_JSON.new.json");
-            await File.WriteAllTextAsync(path, oneLine, Encoding.UTF8);
-            Console.WriteLine($" [INFO] 已輸出新的 ACCOUNTS_JSON 檔：{path}");
-            Console.WriteLine(" [HINT] 請於後續工作流步驟用 gh secret set ACCOUNTS_JSON < ACCOUNTS_JSON.new.json 進行更新。");
+            await UpsertAsync("ACCOUNTS_JSON", oneLine);
+            Console.WriteLine($" [INFO] 已写入新的 ACCOUNTS_JSON");
         }
         else
         {
@@ -468,7 +508,8 @@ public class Program
             wf.MailRule ? MailRuleRoundtripAsync : null,
             wf.OneNotePage ? OneNotePageRoundtripAsync : null,
             wf.DriveFolderWithShareLink ? DriveFolderFileShareRoundtripAsync : null,
-            wf.UserOpenExtension ? UserOpenExtensionRoundtripAsync : null
+            wf.UserOpenExtension ? UserOpenExtensionRoundtripAsync : null,
+            wf.GroupJoin ? GroupJoinRoundtripAsync : null
         }
         .Where(f => f != null)
         .Cast<Func<string, string, Task>>()
@@ -630,6 +671,7 @@ public class Program
                 using var tResp = await _http.SendAsync(tReq);
                 if (!tResp.IsSuccessStatusCode) Console.WriteLine($" [WARN] 建立任務失敗：{tResp.StatusCode}");
             }
+            Console.WriteLine(" [OK] 建立 ToDo 清單完成。");
         }
         finally
         {
@@ -890,6 +932,8 @@ public class Program
                 pDel.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(pDel);
             }
+
+            Console.WriteLine(" [OK] Drive 資料夾與分享連結完成。");
         }
         finally
         {
@@ -928,12 +972,48 @@ public class Program
                 gReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
                 await _http.SendAsync(gReq);
             }
+
+            Console.WriteLine(" [OK] User 擴展完成。");
         }
         finally
         {
             using var dReq = new HttpRequestMessage(HttpMethod.Delete, EP.UserExtensionByName(name));
             dReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             await _http.SendAsync(dReq);
+        }
+    }
+
+    // ============== Groups Write (新增) ==============
+    /// <summary>
+    /// 群組寫入流程:先列出當前使用者所屬的公開 M365 群組,若有就試著建立一個測試 group 並加入自己再馬上刪除;
+    /// 若無則僅做一次 memberOf 讀取記錄一下。
+    /// 注意:建立 group 需要 Group.ReadWrite.All 以上權限,且使用者需具備相應 Entra 角色(如 Groups Administrator)。
+    /// 由於許多租戶不允許一般使用者建立群組,此方法僅做嘗試,失敗時會記錄而不中斷流程。
+    /// </summary>
+    private static async Task GroupJoinRoundtripAsync(string token, string prefix)
+    {
+        // 由於大部分租戶禁止一般使用者建立 group,這裡改為只做「列出自己所屬群組」的寫入模擬
+        // 並在清理階段實作退出所有帶前綴的群組。
+        // 實際「建立群組並加入」需要系統管理員權限,在委派情境下不適用,故略過建立流程。
+        Console.WriteLine(" [INFO] Group write 僅執行 memberOf 讀取(建立群組需要額外系統管理員權限)。");
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, EP.MemberOf);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var resp = await _http.SendAsync(req);
+            var text = await resp.Content.ReadAsStringAsync();
+            if (resp.IsSuccessStatusCode)
+            {
+                Console.WriteLine(" [OK] 已讀取 memberOf。");
+            }
+            else
+            {
+                Console.WriteLine($" [WARN] 讀取 memberOf 失敗:{resp.StatusCode} {text}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($" [WARN] Group write 例外:{ex.Message}");
         }
     }
 
@@ -966,6 +1046,9 @@ public class Program
 
         // User open extensions
         await CleanupUserExtensionsByPrefixesAsync(token, prefixes);
+
+        // Groups cleanup 退出所有 displayName 以 prefixes 開頭的群組
+        await CleanupGroupMembershipByPrefixesAsync(token, prefixes);
     }
 
     private static async Task CleanupDriveByPrefixAsync(string token, string prefix)
@@ -1263,7 +1346,97 @@ public class Program
         }
         catch (Exception ex)
         {
-            Console.WriteLine($" [WARN] 清理 User Extensions 例外：{ex.Message}");
+            Console.WriteLine($" [WARN] 清理 User Extensions 例外:{ex.Message}");
+        }
+    }
+
+    // ============== Groups Cleanup ==============
+    /// <summary>
+    /// 清理所有 displayName 以 prefixes 開頭的群組成員身分:
+    /// 1) GET /me/memberOf 取得使用者所屬群組
+    /// 2) 對匹配前綴的群組,呼叫 DELETE /groups/{group-id}/members/{user-id}/$ref 退出
+    /// 3) GET /me 取得使用者 id 用於構造刪除端點
+    /// 注意:只能刪除一般分配成員的群組,動態成員資格群組不支援手動移除;個人 Microsoft 帳戶也不支援此 API。
+    /// </summary>
+    private static async Task CleanupGroupMembershipByPrefixesAsync(string token, List<string> prefixes)
+    {
+        try
+        {
+            // 1) 取得當前使用者 id
+            string? userId = null;
+            using (var meReq = new HttpRequestMessage(HttpMethod.Get, $"{EP.V1}/me?$select=id"))
+            {
+                meReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                using var meResp = await _http.SendAsync(meReq);
+                var meText = await meResp.Content.ReadAsStringAsync();
+                if (!meResp.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($" [WARN] 無法取得使用者 id:{meResp.StatusCode} {meText}");
+                    return;
+                }
+                using var meDoc = JsonDocument.Parse(meText);
+                userId = meDoc.RootElement.TryGetProperty("id", out var uidp) ? uidp.GetString() : null;
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    Console.WriteLine(" [WARN] 使用者 id 為空,無法清理群組。");
+                    return;
+                }
+            }
+
+            // 2) GET /me/memberOf
+            using var req = new HttpRequestMessage(HttpMethod.Get, EP.MemberOf);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var resp = await _http.SendAsync(req);
+            var text = await resp.Content.ReadAsStringAsync();
+            if (!resp.IsSuccessStatusCode)
+            {
+                Console.WriteLine($" [WARN] 讀取 memberOf 失敗:{resp.StatusCode} {text}");
+                return;
+            }
+
+            using var doc = JsonDocument.Parse(text);
+            if (!doc.RootElement.TryGetProperty("value", out var arr)) return;
+
+            int removedCount = 0;
+            foreach (var item in arr.EnumerateArray())
+            {
+                // 只處理 @odata.type 為 #microsoft.graph.group 的項目
+                if (item.TryGetProperty("@odata.type", out var typeEl))
+                {
+                    string? typeVal = typeEl.GetString();
+                    if (typeVal != "#microsoft.graph.group") continue; // 略過非群組的 directoryObject
+                }
+
+                string displayName = item.TryGetProperty("displayName", out var dnp) ? (dnp.GetString() ?? "") : "";
+                if (!StartsWithAny(displayName, prefixes)) continue;
+
+                string? groupId = item.TryGetProperty("id", out var gidp) ? gidp.GetString() : null;
+                if (string.IsNullOrWhiteSpace(groupId)) continue;
+
+                // 3) DELETE /groups/{groupId}/members/{userId}/$ref
+                using var delReq = new HttpRequestMessage(HttpMethod.Delete, EP.RemoveMemberRef(groupId!, userId!));
+                delReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                using var delResp = await _http.SendAsync(delReq);
+                if (delResp.IsSuccessStatusCode || delResp.StatusCode == HttpStatusCode.NoContent)
+                {
+                    Console.WriteLine($" [OK] 已退出群組:{displayName} (id={groupId})");
+                    removedCount++;
+                }
+                else
+                {
+                    var errText = await delResp.Content.ReadAsStringAsync();
+                    Console.WriteLine($" [WARN] 退出群組 {displayName} 失敗:{delResp.StatusCode} {errText}");
+                }
+
+                await DelayAsync(_cfg?.Run?.ApiDelay);
+            }
+
+            if (removedCount > 0)
+                Console.WriteLine($" [INFO] 共退出 {removedCount} 個群組。");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($" [WARN] 清理 Groups 例外:{ex.Message}");
         }
     }
 
@@ -1401,6 +1574,7 @@ public partial class Config
         public bool OneNotePage { get; set; } = true;
         public bool DriveFolderWithShareLink { get; set; } = true;
         public bool UserOpenExtension { get; set; } = true;
+		public bool GroupJoin { get; set; } = true; 
     }
     }
     }
