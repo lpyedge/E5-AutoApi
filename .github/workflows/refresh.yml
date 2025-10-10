@@ -1,0 +1,51 @@
+name: refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '21 13 4,15,26 * *'
+  # watch:
+  #   types: [started]
+
+jobs:
+  auto-update:
+    runs-on: ubuntu-latest
+    permissions:
+      # Read repository contents
+      contents: read
+       # Write/update Actions secrets (required for token persistence)
+      actions: write
+
+    steps:
+      # Checkout repository to access source code
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # Install .NET 10 SDK for C# script execution
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '10.0.x'
+
+      # Refresh OAuth2 refresh tokens for all configured accounts 
+      # This mode:
+      # - Exchanges current refresh tokens for new ones
+      # - Updates access tokens for continued API access
+      # - Encrypts and writes updated tokens back to GitHub Secrets (ACCOUNTS_JSON)
+      # - Prevents token expiration that would break automated workflows
+      # 
+      # Note: If GITHUB_TOKEN permissions are insufficient for updating secrets,
+      # replace with a Personal Access Token (PAT) having 'repo' and 'workflow' scopes
+      - name: Refresh and Persist OAuth Tokens
+        shell: bash
+        env:
+          # GitHub-provided token with actions:write permission
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}          
+          # Current repository identifier in 'owner/repo' format
+          GH_REPO:  ${{ github.repository }}          
+          # JSON configuration containing multiple Microsoft accounts
+          # Format: [{"ClientId":"...", "ClientSecret":"...", "RefreshToken":"..."}]
+          ACCOUNTS_JSON: ${{ secrets.ACCOUNTS_JSON }}
+        run: |
+          cd src
+          dotnet run Program.cs refresh

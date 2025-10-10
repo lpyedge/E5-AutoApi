@@ -3,36 +3,34 @@ name: read
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'  # 每6小時執行一次
-  watch:
-    types: [started]
+    - cron: '0 */6 * * *'
+  # watch:
+  #   types: [started]
 
 jobs:
   auto-update:
     runs-on: ubuntu-latest
 
     steps:
+      # Checkout repository to access source code
       - name: Checkout
         uses: actions/checkout@v3
 
+      # Install .NET 10 SDK for C# script execution
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: '10.0.x'
 
-      - name: Export secrets to env
+      # Execute read-only operations against Microsoft Graph API
+      # This mode performs non-destructive read operations
+      # - Does NOT create, modify, or delete any resources
+      - name: Execute Read Operations
         shell: bash
+        env:
+          # JSON configuration containing multiple Microsoft accounts
+           # Format: [{"ClientId":"...", "ClientSecret":"...", "RefreshToken":"..."}]
+          ACCOUNTS_JSON: ${{ secrets.ACCOUNTS_JSON }} 
         run: |
-          echo "GH_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_ENV
-
-          # 導出多帳號配置的 JSON（必填）
-          echo "ACCOUNTS_JSON<<EOF" >> $GITHUB_ENV
-          echo '${{ secrets.ACCOUNTS_JSON }}' >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-      - name: Run
-        shell: bash
-        run: |
-          set -e
           cd src
           dotnet run Program.cs read

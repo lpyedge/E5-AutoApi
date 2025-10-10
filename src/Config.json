@@ -25,9 +25,11 @@
   },
   "Features": {
     "Read": {
+      "TaskMin":6,
       "UseExtendedApis": true
     },
     "Write": {
+      "TaskMin":6,
       "UploadRandomFile": true,
       "Excel": true,
       "Todo": true,
@@ -39,7 +41,11 @@
       "OneNotePage": true,
       "DriveFolderWithShareLink": true,
       "UserOpenExtension": true,
-      "GroupJoin": true
+      "GroupJoin": true,
+      "MailForwardReply": true,
+      "FileCopyMove": true,
+      "CalendarEventResponse": true,
+      "TaskCompletion": true
     }
   }
 }
