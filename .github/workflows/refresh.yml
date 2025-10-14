@@ -51,21 +51,29 @@ jobs:
         if: success()
         shell: bash
         run: |        
+          set -euo pipefail
+          
+          # Identify current branch (fallback to HEAD)
+          BRANCH="${GITHUB_REF_NAME:-$(git rev-parse --abbrev-ref HEAD)}"
+      
+          # Always sync first — autostash avoids "dirty index" errors on rebase
+          git fetch origin "${BRANCH}"
+          git pull --rebase --autostash origin "${BRANCH}"
+      
+          # Write log in repo root with UTC timestamp
           TS="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo "Last refresh token succeeded at ${TS}" > refresh.log
           echo "Wrote refresh.log with timestamp: ${TS}"
-
-          set -e
-          git config --global user.name  "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add refresh.log
-          if git diff --cached --quiet; then
+      
+          # Commit only when content actually changed
+          if git diff --quiet -- refresh.log; then
             echo "No changes to commit."
-          else
-            COMMIT_MSG="refresh log"
-            # protect against concurrent updates
-            git pull --rebase
-            git commit -m "chore: ${COMMIT_MSG}"
-            git push
-            echo "Committed and pushed refresh.log"
+            exit 0
           fi
+      
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      
+          git add refresh.log
+          git commit -m "chore: update refresh.log - Last refresh token succeeded at ${TS}"
+          git push origin "HEAD:${BRANCH}"
