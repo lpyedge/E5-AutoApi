@@ -264,7 +264,7 @@ public class Program
                     Console.WriteLine($" [ERROR] 401 Unauthorized. Token invalid or expired. {hint} Please verify your PAT scopes (classic: repo; fine-grained: Secrets Read) and repo selection.");
                     break;
                 case 403:
-                    Console.WriteLine($" [ERROR] 403 Forbidden. Resource not accessible by integration. {hint} Likely using GITHUB_TOKEN or PAT lacks Secrets permission or repo access.");
+                    Console.WriteLine($" [ERROR] 403 Forbidden. Resource not accessible by integration. {hint} Likely using PAT lacks Secrets permission or repo access.");
                     break;
                 case 404:
                     Console.WriteLine($" [ERROR] 404 Not Found. Check REPO value '{owner_repo}' and ensure the token has access to this repository (private repos require 'repo' scope). {hint}");
