@@ -237,7 +237,8 @@ dotnet run -- refresh
 
 1. 前往 Settings → Developer settings → Personal access tokens → Fine‑grained tokens → Generate new token，填寫名稱後建立令牌。​
 2. 在 Repository access 選擇 Only select repositories，稍後挑選需要操作的目標儲存庫以避免過度授權。
-3. 點選Generate token按鈕並儲存產生的token,只會顯示一次,務必提前儲存到本地.稍微需要設定到儲存庫的Secrets中.
+3. 對目標儲存庫授予 Repository permissions 的 Secrets: Read and Write 權限。​
+4. 點選Generate token按鈕並儲存產生的token,只會顯示一次,務必提前儲存到本地.稍微需要設定到儲存庫的Secrets中.
 
 ### 配置 Secrets
 
