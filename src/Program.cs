@@ -110,7 +110,7 @@ public class Program
                     if (runWrite)
                     {
                         // Send notification email if configured
-                        if (!string.IsNullOrWhiteSpace(_cfg?.Notification?.Email?.ToAddress))
+                        if (!string.IsNullOrWhiteSpace(_cfg.Notification?.Email?.ToAddress))
                         {
                             _ = SendEmailAsync(token, _cfg.Notification.Email.ToAddress!,
                                 "Graph Automation Task Started",
@@ -211,16 +211,6 @@ public class Program
     }
 
     // ============== GitHub Secrets Management ==============
-
-    /// <summary>
-    /// Response model for GitHub repository public key.
-    /// </summary>
-    private record PublicKeyResp(string key_id, string key);
-
-    /// <summary>
-    /// Request model for GitHub secret upsert operation.
-    /// </summary>
-    private record UpsertReq(string encrypted_value, string key_id);
 
     /// <summary>
     /// Updates a GitHub repository secret using libsodium sealed box encryption.
@@ -2349,12 +2339,26 @@ public partial class TokenResponse
     [JsonPropertyName("expires_in")] public int ExpiresIn { get; set; }
     [JsonPropertyName("token_type")] public string? TokenType { get; set; }
 }
+
+
+/// <summary>
+/// Response model for GitHub repository public key.
+/// </summary>
+public record PublicKeyResp(string key_id, string key);
+
+/// <summary>
+/// Request model for GitHub secret upsert operation.
+/// </summary>
+public record UpsertReq(string encrypted_value, string key_id);
+
 // ============== JSON Source Generator Context ==============
 
 [JsonSourceGenerationOptions(
     PropertyNameCaseInsensitive = true,
     WriteIndented = false
 )]
+[JsonSerializable(typeof(UpsertReq))]
+[JsonSerializable(typeof(PublicKeyResp))]
 [JsonSerializable(typeof(TokenResponse))]
 [JsonSerializable(typeof(Config))]
 [JsonSerializable(typeof(List<Config.AccountConfig>))]
