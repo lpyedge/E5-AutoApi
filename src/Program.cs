@@ -244,7 +244,7 @@ public class Program
         req0.RequestUri = new Uri($"https://api.github.com/repos/{owner_repo}/actions/secrets/public-key");
         var pkJsonResponse = await _http.SendAsync(req0);
         var pkJson = await pkJsonResponse.Content.ReadAsStringAsync();
-        var pk = JsonSerializer.Deserialize<PublicKeyResp>(pkJson)!;
+        var pk = JsonSerializer.Deserialize(pkJson, ConfigContext.Default.PublicKeyResp)!;
 
         // Step 2: Encrypt plaintext using libsodium sealed box (base64 encoded)
         var pubKeyBytes = Convert.FromBase64String(pk.key);
@@ -2375,3 +2375,4 @@ public record UpsertReq(string encrypted_value, string key_id);
 internal partial class ConfigContext : JsonSerializerContext
 {
 }
+
