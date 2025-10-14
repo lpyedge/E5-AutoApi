@@ -244,8 +244,18 @@ public class Program
         req0.RequestUri = new Uri($"https://api.github.com/repos/{owner_repo}/actions/secrets/public-key");
         var pkJsonResponse = await _http.SendAsync(req0);
         var pkJson = await pkJsonResponse.Content.ReadAsStringAsync();
+        if (!pkJsonResponse.IsSuccessStatusCode)
+        {
+            Console.WriteLine($" [ERROR] Get public-key failed: {(int)pkJsonResponse.StatusCode} {pkJson}");
+            return;
+        }     
         var pk = JsonSerializer.Deserialize(pkJson, ConfigContext.Default.PublicKeyResp)!;
-
+        if (pk is null || string.IsNullOrWhiteSpace(pk.key) || string.IsNullOrWhiteSpace(pk.key_id))
+        {
+            Console.WriteLine($" [ERROR] Public-key payload missing fields: {pkJson}");
+            return;
+        }
+        
         // Step 2: Encrypt plaintext using libsodium sealed box (base64 encoded)
         var pubKeyBytes = Convert.FromBase64String(pk.key);
         var cipher = Sodium.SealedPublicKeyBox.Create(Encoding.UTF8.GetBytes(plaintext), pubKeyBytes);
