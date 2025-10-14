@@ -1,79 +1,86 @@
-# Microsoft Graph API Automation Tool
+# Microsoft Graph API 自動化工具
 
-A C# .NET automation tool for Microsoft Graph API that performs continuous read/write operations across Office 365 services. Supports delegated permissions with PKCE OAuth flow and automatic token refresh.
+一個基於 C\# .NET 的 Microsoft Graph API 自動化工具,支援 Office 365 服務的持續讀寫操作。採用 PKCE OAuth 授權流程和自動令牌刷新機制。
 
-## Features
+## 功能特色
 
-### Supported Operations
+### 支援的操作
 
-#### Read Mode
-- **User Profile**: Display name, email, presence, people, manager, direct reports
-- **OneDrive**: Files, folders, quota, recent items, shared items
-- **Mail**: Messages, folders, categories, drafts, sent items
-- **Calendar**: Events, calendar view, permissions, calendar groups
-- **Contacts**: Contacts list and folders
-- **To Do**: Task lists and tasks
-- **OneNote**: Notebooks, sections, pages
-- **SharePoint**: Sites and drives
-- **Teams**: Joined teams (requires Team.ReadBasic.All)
-- **Directory**: Users, groups, licenses (requires admin permissions)
+#### 讀取模式
 
-#### Write Mode (with automatic cleanup)
-- **OneDrive**: Upload/delete files, create folders, copy/move files, manage versions
-- **Excel**: Create workbooks, add worksheets, create tables, write data
-- **Mail**: Create/delete drafts, create folders, manage rules, forward/reply messages
-- **Calendar**: Create/delete events, accept/decline invitations
-- **Contacts**: Create/delete contacts
-- **To Do**: Create/delete task lists and tasks, complete tasks
-- **OneNote**: Create/delete pages
-- **User Extensions**: Create/delete open extensions
-- **Groups**: Read membership (group creation requires admin)
+- **使用者資料**:顯示名稱、電子郵件、狀態、聯絡人、主管、直屬下級
+- **OneDrive**:檔案、資料夾、配額、最近項目、共享項目
+- **郵件**:訊息、資料夾、類別、草稿、已傳送項目
+- **行事曆**:事件、行事曆檢視、權限、行事曆群組
+- **聯絡人**:聯絡人清單和資料夾
+- **待辦事項**:工作清單和工作
+- **OneNote**:筆記本、節、頁面
+- **SharePoint**:網站和磁碟機
+- **Teams**:已加入的團隊(需要 Team.ReadBasic.All 權限)
+- **目錄**:使用者、群組、授權(需要管理員權限)
 
-### Key Features
 
-- **PKCE OAuth Flow**: Secure authorization without client secret for public clients
-- **Automatic Token Refresh**: Persists updated refresh tokens to Config.json or GitHub Secrets
-- **Configurable Operations**: Fine-grained control over which operations to execute
-- **Resource Cleanup**: Automatically removes all created test resources
-- **Rate Limiting**: Built-in retry logic with exponential backoff
-- **Multi-Language Support**: English, Traditional Chinese, Japanese (PowerShell script)
-- **CI/CD Ready**: GitHub Actions integration with environment variable support
+#### 寫入模式(自動清理)
 
-## Prerequisites
+- **OneDrive**:上傳/刪除檔案、建立資料夾、複製/移動檔案、版本管理
+- **Excel**:建立活頁簿、新增工作表、建立表格、寫入資料
+- **郵件**:建立/刪除草稿、建立資料夾、管理規則、轉寄/回覆訊息
+- **行事曆**:建立/刪除事件、接受/拒絕邀請
+- **聯絡人**:建立/刪除聯絡人
+- **待辦事項**:建立/刪除工作清單和工作、完成工作
+- **OneNote**:建立/刪除頁面
+- **使用者擴充**:建立/刪除開放擴充
+- **群組**:讀取成員資格(建立群組需要管理員權限)
 
-1. **Azure AD App Registration**
-   - Client ID
-   - Client Secret (for confidential clients)
-   - Tenant ID
-2. **Delegated Permissions** (see [Required Permissions](#required-permissions))
-3. **.NET 8.0 SDK** or higher
-4. **PowerShell 5.1+** (for token acquisition script)
 
-## Quick Start
+### 核心功能
 
-### 1. Register Azure AD Application
+- **PKCE OAuth 流程**:無需用戶端密碼的安全授權(適用於公開用戶端)
+- **自動令牌刷新**:將更新後的刷新令牌保存至 Config.json 或 GitHub Secrets
+- **可配置操作**:對執行的操作進行細緻控制
+- **資源清理**:自動移除所有建立的測試資源
+- **速率限制**:內建指數退避重試邏輯
+- **CI/CD 就緒**:GitHub Actions 整合與環境變數支援
 
-Visit [Azure Entra Admin Center](https://entra.microsoft.com/#view/Microsoft_AAD_IAM/TenantOverview.ReactView)
 
-#### App Registration
-1. Navigate to **App registrations** > **New registration**
-2. Note down **Client ID** and **Tenant ID**
-3. Go to **Authentication** > Add platform > **Web**
-4. Add Redirect URI: `http://localhost` or `https://login.microsoftonline.com/common/oauth2/nativeclient`
-5. Enable **Authorization code flow**
+## 先決條件
 
-#### Client Secret (for confidential clients)
-1. Navigate to **Certificates & secrets** > **Client secrets**
-2. Click **New client secret**
-3. Note down the generated secret value
+1. **Azure AD 應用程式註冊**
+    - Client ID(用戶端 ID)
+    - Client Secret(用戶端密碼,機密用戶端需要)
+    - Tenant ID(租戶 ID)
+2. **委派權限**(見下方必要權限)
+3. **.NET 10.0 SDK** 或更高版本
+4. **PowerShell 5.1+**(用於令牌取得指令碼)
 
-#### API Permissions
-1. Navigate to **API permissions** > **Add a permission**
-2. Select **Microsoft Graph** > **Delegated permissions**
-3. Add the required permissions (see below)
-4. Click **Grant admin consent for [Tenant]**
+## 快速開始
 
-### 2. Required Permissions
+### 步驟 1:註冊 Azure AD 應用程式
+
+前往 [Azure Entra 管理中心](https://entra.microsoft.com/#view/Microsoft_AAD_IAM/TenantOverview.ReactView)
+
+#### 應用程式註冊
+
+1. 導航至**應用程式註冊** > **新增註冊**
+2. 記下**用戶端 ID** 和**租戶 ID**
+3. 前往**驗證** > 新增平台 > **Web**
+4. 新增重新導向 URI:`http://localhost` 或 `https://login.microsoftonline.com/common/oauth2/nativeclient`
+5. 啟用**授權碼流程**
+
+#### 用戶端密碼(機密用戶端)
+
+1. 導航至**憑證與密碼** > **用戶端密碼**
+2. 點擊**新增用戶端密碼**
+3. 記下生成的密碼值
+
+#### API 權限
+
+1. 導航至 **API 權限** > **新增權限**
+2. 選擇 **Microsoft Graph** > **委派的權限**
+3. 新增以下必要權限
+4. 點擊**為 [租戶] 授予管理員同意**
+
+### 步驟 2:必要權限
 
 ```
 openid
@@ -88,42 +95,48 @@ Mail.ReadWrite
 Mail.Send
 Contacts.ReadWrite
 Calendars.ReadWrite
-Notes.ReadWrite (or Notes.ReadWrite.All)
+Notes.ReadWrite (或 Notes.ReadWrite.All)
 People.Read
 Presence.Read
 Directory.ReadWrite.All
 Group.ReadWrite.All
 ```
 
-### 3. Obtain Refresh Token
 
-#### Using PowerShell Script
+### 步驟 3:取得刷新令牌
+
+#### 使用 PowerShell 指令碼
 
 **Windows (CMD)**:
+
 ```cmd
 powershell -ExecutionPolicy Bypass -File .\request_token.ps1
 ```
 
 **PowerShell**:
+
 ```powershell
 .\request_token.ps1
 ```
 
-**What the script does**:
-1. Opens browser for OAuth authorization
-2. Prompts to paste the callback URL after login
-3. Exchanges authorization code for tokens using PKCE
-4. Saves tokens to `tokens_<timestamp>.json`
-5. Saves account configuration to `account_<timestamp>.json`
-6. Tests token by calling Microsoft Graph `/me` endpoint
+**指令碼功能**:
 
-**Generated Files**:
-- `tokens_<timestamp>.json`: Complete token response (access_token, refresh_token, expires_in)
-- `account_<timestamp>.json`: Application configuration (ClientId, ClientSecret, RefreshToken)
+1. 開啟瀏覽器進行 OAuth 授權
+2. 提示貼上登入後的回呼 URL
+3. 使用 PKCE 交換授權碼為令牌
+4. 將令牌儲存至 `tokens_<timestamp>.json`
+5. 將帳戶配置儲存至 `account_<timestamp>.json`
+6. 呼叫 Microsoft Graph `/me` 端點測試令牌
 
-### 4. Configure Application
+**生成的檔案**:
 
-Create `Config.json` in the project root:
+- `tokens_<timestamp>.json`:完整的令牌回應(access_token、refresh_token、expires_in)
+- `account_<timestamp>.json`:應用程式配置(ClientId、ClientSecret、RefreshToken)
+
+
+### 步驟 4:配置應用程式
+
+在專案根目錄建立 `Config.json`:
 
 ```json
 {
@@ -177,291 +190,217 @@ Create `Config.json` in the project root:
       "CalendarEventResponse": false,
       "TaskCompletion": false
     }
-  },
-  "Assets": {
-    "Excel": {
-      "MinimalWorkbookBase64": "<base64-encoded-xlsx-file>"
-    }
   }
 }
 ```
 
-### 5. Run Application
 
-**Read Mode Only**:
+### 步驟 5:執行應用程式
+
+**僅讀取模式**:
+
 ```bash
 dotnet run -- read
 ```
 
-**Write Mode Only**:
+**僅寫入模式**:
+
 ```bash
 dotnet run -- write
 ```
 
-**Both Modes** (default):
+**兩種模式**(預設):
+
 ```bash
 dotnet run
-# or
+# 或
 dotnet run -- both
 ```
 
-**Refresh Tokens Only**:
+**僅刷新令牌**:
+
 ```bash
 dotnet run -- refresh
 ```
 
-## Configuration Reference
 
-### Accounts
-Array of Microsoft 365 accounts with OAuth credentials.
+## GitHub Actions 整合
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| ClientId | string | Yes | Application (client) ID from Azure AD |
-| ClientSecret | string | Yes* | Client secret value (*required for confidential clients) |
-| RefreshToken | string | Yes | OAuth refresh token obtained via authorization flow |
+### 設定工作流程權限
 
-### Prefixes
-Array of strings used for naming created resources. Enables cleanup by prefix matching.
+1. 導航至儲存庫**設定** > **Actions** > **一般**
+2. 在**工作流程權限**下,勾選**讀取和寫入權限**
+3. 儲存變更
 
-**Example**:
-```json
-"Prefixes": ["TEST", "AUTO", "DEMO"]
-```
+### 配置 Secrets
 
-### Run Configuration
+新增以下儲存庫 Secrets:
 
-Controls execution flow and timing between operations.
 
-| Property | Description |
-|----------|-------------|
-| Rounds | Number of execution rounds per account |
-| ApiDelay | Delay between individual API calls |
-| RoundsDelay | Delay between execution rounds |
-| AccountDelay | Delay between different accounts |
+| Secret | 說明 |
+| :-- | :-- |
+| ACCOUNTS_JSON | 帳戶配置的 JSON 陣列 |
+| GH_TOKEN | 具有 `repo` 範圍的 GitHub 個人存取令牌 |
+| GH_REPO | 格式為 `owner/repo` 的儲存庫 |
 
-Each delay configuration supports:
-```json
-{
-  "Enabled": true,
-  "MinSeconds": 2,
-  "MaxSeconds": 5
-}
-```
+**ACCOUNTS_JSON 範例**:
 
-### Features Configuration
-
-#### Read Features
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| TaskMin | int | 8 | Minimum number of read endpoints to execute |
-| UseExtendedApis | bool | true | Enable extended API calls (requires additional permissions) |
-
-#### Write Features
-Toggle individual write operations:
-
-| Property | Description |
-|----------|-------------|
-| UploadRandomFile | Upload and delete test files |
-| Excel | Excel workbook operations |
-| Todo | To Do list operations |
-| CalendarEvent | Calendar event CRUD |
-| Contacts | Contact CRUD |
-| MailDraft | Mail draft operations |
-| MailFolder | Mail folder management |
-| MailRule | Inbox rule management |
-| OneNotePage | OneNote page operations |
-| DriveFolderWithShareLink | OneDrive sharing |
-| UserOpenExtension | User extension operations |
-| GroupJoin | Group membership (read-only) |
-| MailForwardReply | Email forwarding/replying |
-| FileCopyMove | File copy/move operations |
-| CalendarEventResponse | Accept/decline events |
-| TaskCompletion | Mark tasks as complete |
-
-## GitHub Actions Integration
-
-### Setup Workflow Permissions
-
-1. Navigate to repository **Settings** > **Actions** > **General**
-2. Under **Workflow permissions**, check **Read and write permissions**
-3. Save changes
-
-### Configure Secrets
-
-Add the following repository secrets:
-
-| Secret | Description |
-|--------|-------------|
-| ACCOUNTS_JSON | JSON array of account configurations |
-| GH_TOKEN | GitHub Personal Access Token with `repo` scope |
-| GH_REPO | Repository in format `owner/repo` |
-
-**ACCOUNTS_JSON Example**:
 ```json
 [{"ClientId":"...","ClientSecret":"...","RefreshToken":"..."}]
 ```
 
-### Multiple Accounts
 
-The tool supports multiple accounts in `Config.json`:
+### 工作流程檔案
 
-```json
-{
-  "Accounts": [
-    {
-      "ClientId": "account-1-client-id",
-      "ClientSecret": "account-1-secret",
-      "RefreshToken": "account-1-refresh-token"
-    },
-    {
-      "ClientId": "account-2-client-id",
-      "ClientSecret": "account-2-secret",
-      "RefreshToken": "account-2-refresh-token"
-    }
-  ]
-}
+專案包含三個 GitHub Actions 工作流程:
+
+#### read.yml
+
+- **功能**:執行僅讀取操作,不建立、修改或刪除任何資源
+
+
+#### write.yml
+
+- **功能**:執行寫入操作,並自動清理所有建立的資源
+
+
+#### refresh.yml
+
+- **功能**:刷新 OAuth2 令牌,並將更新後的令牌加密寫回 GitHub Secrets
+
+
+## 專案結構
+
+```
+E5-AUTOAPI/
+├── .github/
+│   └── workflows/
+│       ├── read.yml        # 讀取操作工作流程
+│       ├── write.yml       # 寫入操作工作流程
+│       └── refresh.yml     # 令牌刷新工作流程
+├── src/
+│   ├── Config.json         # 應用程式配置檔案
+│   └── Program.cs          # 主程式邏輯
+├── request_token.ps1       # OAuth 令牌取得指令碼
+├── README.md               # 專案說明文件
+└── LICENSE                 # 授權條款
 ```
 
-### Environment Variable Override
 
-For CI/CD scenarios, set `ACCOUNTS_JSON` environment variable:
+## 設定參考
 
-```bash
-export ACCOUNTS_JSON='[{"ClientId":"...","ClientSecret":"...","RefreshToken":"..."}]'
-dotnet run
-```
+### Accounts(帳戶)
 
-This overrides accounts from `Config.json`.
+包含 OAuth 憑證的 Microsoft 365 帳戶陣列。
 
-### Token Refresh Behavior
 
-When running in **refresh mode**:
-- Tokens are refreshed for all configured accounts
-- Updated refresh tokens are persisted back to `Config.json` (local) or GitHub Secrets (CI/CD)
-- Fatal errors (expired refresh token, invalid client secret) exit with code 1
+| 欄位 | 類型 | 必要 | 說明 |
+| :-- | :-- | :-- | :-- |
+| ClientId | string | 是 | Azure AD 的應用程式(用戶端)ID |
+| ClientSecret | string | 是* | 用戶端密碼值(*機密用戶端需要) |
+| RefreshToken | string | 是 | 透過授權流程取得的 OAuth 刷新令牌 |
 
-### Cleanup Strategy
+### Run(執行配置)
 
-The tool uses prefix-based cleanup:
-1. All created resources are named with configured prefixes (e.g., `TEST_File_12345.txt`)
-2. After each round, cleanup methods search and delete resources matching prefixes
-3. Supports cleanup across all services (OneDrive, Mail, Calendar, Contacts, etc.)
+控制執行流程和操作之間的時間間隔。
 
-## Troubleshooting
 
-### Common Issues
+| 屬性 | 說明 |
+| :-- | :-- |
+| Rounds | 每個帳戶的執行輪數 |
+| ApiDelay | 個別 API 呼叫之間的延遲 |
+| RoundsDelay | 執行輪次之間的延遲 |
+| AccountDelay | 不同帳戶之間的延遲 |
 
-#### Error: Failed to obtain token
-- Verify Client ID, Client Secret, and Refresh Token are correct
-- Check if refresh token has expired (re-run `request_token.ps1`)
-- Ensure redirect URI matches Azure AD configuration
+### Features(功能配置)
 
-#### Error: Insufficient privileges
-- Grant admin consent for required permissions in Azure AD
-- Verify delegated permissions are added (not application permissions)
+#### 讀取功能
 
-#### 429 Too Many Requests
-- Tool automatically retries with exponential backoff
-- Increase `ApiDelay` in configuration to reduce request rate
+| 屬性 | 類型 | 預設值 | 說明 |
+| :-- | :-- | :-- | :-- |
+| TaskMin | int | 8 | 要執行的最小讀取端點數量 |
+| UseExtendedApis | bool | true | 啟用擴充 API 呼叫(需要額外權限) |
 
-#### Token refresh failed with AADSTS700222
-- Refresh token has expired
-- Re-authorize using `request_token.ps1` to obtain new refresh token
+#### 寫入功能
 
-#### PowerShell script execution blocked
+切換個別寫入操作:
+
+
+| 屬性 | 說明 |
+| :-- | :-- |
+| UploadRandomFile | 上傳和刪除測試檔案 |
+| Excel | Excel 活頁簿操作 |
+| Todo | 待辦事項清單操作 |
+| CalendarEvent | 行事曆事件 CRUD |
+| Contacts | 聯絡人 CRUD |
+| MailDraft | 郵件草稿操作 |
+| MailFolder | 郵件資料夾管理 |
+| MailRule | 收件匣規則管理 |
+| OneNotePage | OneNote 頁面操作 |
+| DriveFolderWithShareLink | OneDrive 共用 |
+| UserOpenExtension | 使用者擴充操作 |
+
+## 常見問題排解
+
+### 常見錯誤
+
+#### 錯誤:無法取得令牌
+
+- 驗證 Client ID、Client Secret 和 Refresh Token 是否正確
+- 檢查刷新令牌是否已過期(重新執行 `request_token.ps1`)
+- 確保重新導向 URI 與 Azure AD 配置相符
+
+
+#### 錯誤:權限不足
+
+- 在 Azure AD 中授予必要權限的管理員同意
+- 驗證已新增委派權限(而非應用程式權限)
+
+
+#### 429 請求過多
+
+- 工具會自動以指數退避重試
+- 增加配置中的 `ApiDelay` 以降低請求速率
+
+
+#### 令牌刷新失敗 AADSTS700222
+
+- 刷新令牌已過期
+- 使用 `request_token.ps1` 重新授權以取得新的刷新令牌
+
+
+#### PowerShell 指令碼執行被封鎖
+
 **Windows (CMD)**:
+
 ```cmd
 powershell -ExecutionPolicy Bypass -File .\request_token.ps1
 ```
 
-**PowerShell** (temporary):
+**PowerShell**(暫時):
+
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 .\request_token.ps1
 ```
 
 
-## Security Considerations
+## 安全性考量
 
-### Best Practices
+### 最佳實踐
 
-1. **Never commit sensitive data**:
-   - Add `Config.json`, `tokens_*.json`, `account_*.json` to `.gitignore`
-   - Use GitHub Secrets for CI/CD workflows
+1. **絕不提交敏感資料**:將 `Config.json`、`tokens_*.json`、`account_*.json` 加入 `.gitignore`
+2. **刷新令牌輪換**:刷新令牌會自動更新並持久化,使用後舊令牌會失效
+3. **最小權限原則**:僅授予必要的委派權限,測試與生產環境使用不同帳戶
+4. **PKCE 流程**:公開用戶端使用 PKCE(無需用戶端密碼),比傳統授權碼流程更安全
+5. **用戶端密碼保護**:將用戶端密碼儲存在安全保管庫(Azure Key Vault、GitHub Secrets),定期輪換密碼
 
-2. **Refresh Token Rotation**:
-   - Refresh tokens are automatically updated and persisted
-   - Old refresh tokens are invalidated after use
+## 依賴項
 
-3. **Least Privilege Principle**:
-   - Only grant required delegated permissions
-   - Use separate accounts for testing vs. production
+- **.NET 10.0+**:執行階段和 SDK
+- **Sodium.Core**:用於 GitHub Secrets 的 Libsodium 加密(NuGet 套件)
+- **System.Text.Json**:原生 JSON 序列化與來源產生器
 
-4. **PKCE Flow**:
-   - Use PKCE for public clients (no client secret required)
-   - More secure than traditional authorization code flow
+***
 
-5. **Client Secret Protection**:
-   - Store client secrets in secure vaults (Azure Key Vault, GitHub Secrets)
-   - Rotate secrets regularly
-
-## Dependencies
-
-- **.NET 10.0+**: Runtime and SDK
-- **Sodium.Core**: Libsodium encryption for GitHub Secrets (NuGet package)
-- **System.Text.Json**: Native JSON serialization with source generators
-
-## Project Structure
-
-```
-.
-└── src/
-├   └── workflows/
-├      └── Program.cs       # Main application logic
-├      └── Config.json      # Application configuration
-├── request_token.ps1       # OAuth token acquisition script
-├── README.md               # This file
-└── .github/
-    └── workflows/
-        └── read.yml        # GitHub Actions workflow
-        └── write.yml       # GitHub Actions workflow
-        └── refresh.yml     # GitHub Actions workflow
-```
-
-## Performance Considerations
-
-- **Rate Limiting**: Microsoft Graph enforces rate limits per tenant and user
-- **Retry Logic**: Automatic exponential backoff for 429/503 errors
-- **Batch Operations**: Consider implementing batch requests for bulk operations
-- **Concurrent Execution**: Avoid running multiple instances simultaneously for the same account
-
-## License
-
-This project is provided as-is for educational and testing purposes. Use at your own risk.
-
-## Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## Support
-
-For issues and questions:
-- Open an issue on GitHub
-- Check [Microsoft Graph API documentation](https://learn.microsoft.com/graph/)
-- Review [Azure AD authentication docs](https://learn.microsoft.com/azure/active-directory/)
-
-## Acknowledgments
-
-- Microsoft Graph API team for comprehensive documentation
-- .NET community for excellent tooling and libraries
-- Contributors and users who provide feedback and improvements
-
----
-
-**Disclaimer**: This tool is designed for testing and automation purposes. Ensure compliance with your organization's policies and Microsoft's terms of service before use.
+**免責聲明**:本工具專為測試和自動化目的設計,使用前請確保符合您組織的政策和 Microsoft 的服務條款。
