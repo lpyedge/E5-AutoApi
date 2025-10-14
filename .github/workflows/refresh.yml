@@ -40,7 +40,7 @@ jobs:
         shell: bash
         env:
           # GitHub-provided token with actions:write permission
-          GH_TOKEN: ${{ secrets.PST }}          
+          GH_TOKEN: ${{ secrets.PAT }}          
           # Current repository identifier in 'owner/repo' format
           GH_REPO:  ${{ github.repository }}          
           # JSON configuration containing multiple Microsoft accounts
