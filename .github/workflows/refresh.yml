@@ -31,9 +31,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@v1
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          # installation-id: ${{ secrets.APP_INSTALLATION_ID }}
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY  }}
           
       # Refresh OAuth2 refresh tokens for all configured accounts 
       # This mode:
