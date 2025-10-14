@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       # Read repository contents
-      contents: read
+      contents: write
        # Write/update Actions secrets (required for token persistence)
       actions: write
 
