@@ -27,20 +27,6 @@ jobs:
         with:
           dotnet-version: '10.0.x'
           
-      - name: debug
-        shell: bash
-        run: |
-          echo ${{ secrets.GH_APP_ID }}
-          echo ${{ secrets.GH_APP_PRIVATE_KEY }}
-          echo ${{ secrets }}
-          
-      - name: Create App installation token
-        id: app-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          
       # Refresh OAuth2 refresh tokens for all configured accounts 
       # This mode:
       # - Exchanges current refresh tokens for new ones
@@ -54,7 +40,7 @@ jobs:
         shell: bash
         env:
           # GitHub-provided token with actions:write permission
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}          
+          GH_TOKEN: ${{ secrets.PST }}          
           # Current repository identifier in 'owner/repo' format
           GH_REPO:  ${{ github.repository }}          
           # JSON configuration containing multiple Microsoft accounts
