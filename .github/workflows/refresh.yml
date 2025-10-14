@@ -30,22 +30,42 @@ jobs:
       # Refresh OAuth2 refresh tokens for all configured accounts 
       # This mode:
       # - Exchanges current refresh tokens for new ones
-      # - Updates access tokens for continued API access
       # - Encrypts and writes updated tokens back to GitHub Secrets (ACCOUNTS_JSON)
       # - Prevents token expiration that would break automated workflows
-      # 
-      # Note: If GITHUB_TOKEN permissions are insufficient for updating secrets,
-      # replace with a Personal Access Token (PAT) having 'repo' and 'workflow' scopes
       - name: Refresh and Persist OAuth Tokens
         shell: bash
-        env:
-          # GitHub-provided token with actions:write permission
-          GH_TOKEN: ${{ secrets.PAT }}          
+        env: 
           # Current repository identifier in 'owner/repo' format
-          GH_REPO:  ${{ github.repository }}          
+          REPO:  ${{ github.repository }}    
+          # Personal Access Token (PAT)
+          PAT: ${{ secrets.PAT }}               
           # JSON configuration containing multiple Microsoft accounts
           # Format: [{"ClientId":"...", "ClientSecret":"...", "RefreshToken":"..."}]
           ACCOUNTS_JSON: ${{ secrets.ACCOUNTS_JSON }}
         run: |
           cd src
           dotnet run Program.cs refresh
+
+      # Write the refresh log back to the repository
+      - name: Write refresh.log
+        if: success()
+        shell: bash
+        run: |        
+          TS="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "Last refresh token succeeded at ${TS}" > refresh.log
+          echo "Wrote refresh.log with timestamp: ${TS}"
+
+          set -e
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add refresh.log
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            COMMIT_MSG="refresh log"
+            # protect against concurrent updates
+            git pull --rebase
+            git commit -m "chore: ${COMMIT_MSG}"
+            git push
+            echo "Committed and pushed refresh.log"
+          fi

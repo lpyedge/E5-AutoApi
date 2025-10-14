@@ -216,15 +216,15 @@ public class Program
     /// Updates a GitHub repository secret using libsodium sealed box encryption.
     /// Used in refresh mode to persist updated refresh tokens.
     /// </summary>
-    private static async Task UpsertGitHubSecretAsync(string name, string plaintext)
+    private static async Task<bool> UpsertGitHubSecretAsync(string name, string plaintext)
     {
-        var owner_repo = Environment.GetEnvironmentVariable("GH_REPO");
-        var token = Environment.GetEnvironmentVariable("GH_TOKEN");
+        var owner_repo = Environment.GetEnvironmentVariable("REPO");
+        var pat = Environment.GetEnvironmentVariable("PAT");
 
-        if (string.IsNullOrWhiteSpace(owner_repo) || string.IsNullOrWhiteSpace(token))
+        if (string.IsNullOrWhiteSpace(owner_repo) || string.IsNullOrWhiteSpace(pat))
         {
-            Console.WriteLine(" [ERROR] GH_REPO or GH_TOKEN environment variable not set, cannot update secret.");
-            return;
+            Console.WriteLine(" [ERROR] Missing REPO or PAT. Cannot update secret. Please set both environment variables.");
+            return false;
         }
 
         // Factory function to generate HttpRequestMessage with common headers
@@ -232,7 +232,7 @@ public class Program
         {
             var req = new HttpRequestMessage();
             req.Headers.UserAgent.ParseAdd("dotnet-secrets-client");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", pat);
             req.Headers.Accept.ParseAdd("application/vnd.github+json");
             req.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
             return req;
@@ -242,33 +242,142 @@ public class Program
         using var req0 = reqGenerate();
         req0.Method = HttpMethod.Get;
         req0.RequestUri = new Uri($"https://api.github.com/repos/{owner_repo}/actions/secrets/public-key");
-        var pkJsonResponse = await _http.SendAsync(req0);
-        var pkJson = await pkJsonResponse.Content.ReadAsStringAsync();
+        HttpResponseMessage pkJsonResponse;
+        string pkJson;
+        try
+        {
+            pkJsonResponse = await _http.SendAsync(req0);
+            pkJson = await pkJsonResponse.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($" [ERROR] Network error when calling secrets public-key endpoint: {ex.Message}");
+            return false;
+        }
+
         if (!pkJsonResponse.IsSuccessStatusCode)
         {
-            Console.WriteLine($" [ERROR] Get public-key failed: {(int)pkJsonResponse.StatusCode} {pkJson}");
-            return;
-        }     
-        var pk = JsonSerializer.Deserialize(pkJson, ConfigContext.Default.PublicKeyResp)!;
+            var hint = ExtractErrorHint(pkJson);
+            switch ((int)pkJsonResponse.StatusCode)
+            {
+                case 401:
+                    Console.WriteLine($" [ERROR] 401 Unauthorized. Token invalid or expired. {hint} Please verify your PAT scopes (classic: repo; fine-grained: Secrets Read) and repo selection.");
+                    break;
+                case 403:
+                    Console.WriteLine($" [ERROR] 403 Forbidden. Resource not accessible by integration. {hint} Likely using GITHUB_TOKEN or PAT lacks Secrets permission or repo access.");
+                    break;
+                case 404:
+                    Console.WriteLine($" [ERROR] 404 Not Found. Check REPO value '{owner_repo}' and ensure the token has access to this repository (private repos require 'repo' scope). {hint}");
+                    break;
+                case 429:
+                    Console.WriteLine($" [ERROR] 429 Rate limited by GitHub API. Please retry later. {hint}");
+                    break;
+                default:
+                    Console.WriteLine($" [ERROR] Get public-key failed: {(int)pkJsonResponse.StatusCode}. {hint}");
+                    break;
+            }
+            return false;
+        }
+
+        var pk = JsonSerializer.Deserialize(pkJson, ConfigContext.Default.PublicKeyResp);
         if (pk is null || string.IsNullOrWhiteSpace(pk.key) || string.IsNullOrWhiteSpace(pk.key_id))
         {
-            Console.WriteLine($" [ERROR] Public-key payload missing fields: {pkJson}");
-            return;
+            Console.WriteLine($" [ERROR] Public-key payload missing required fields (key/key_id). Raw: {pkJson}");
+            return false;
         }
-        
-        // Step 2: Encrypt plaintext using libsodium sealed box (base64 encoded)
-        var pubKeyBytes = Convert.FromBase64String(pk.key);
-        var cipher = Sodium.SealedPublicKeyBox.Create(Encoding.UTF8.GetBytes(plaintext), pubKeyBytes);
-        var encB64 = Convert.ToBase64String(cipher);
 
-        // Step 3: PUT update secret
+        // ---- Step 2: Encrypt plaintext using libsodium sealed box (base64 encoded)
+        byte[] pubKeyBytes;
+        try
+        {
+            pubKeyBytes = Convert.FromBase64String(pk.key);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($" [ERROR] Invalid base64 in GitHub public key: {ex.Message}");
+            return false;
+        }
+
+        string encB64;
+        try
+        {
+            var cipher = Sodium.SealedPublicKeyBox.Create(Encoding.UTF8.GetBytes(plaintext), pubKeyBytes);
+            encB64 = Convert.ToBase64String(cipher);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($" [ERROR] Encryption failed using libsodium: {ex.Message}");
+            return false;
+        }
+
+        // ---- Step 3: PUT update secret
         using var req1 = reqGenerate();
         req1.Method = HttpMethod.Put;
         req1.RequestUri = new Uri($"https://api.github.com/repos/{owner_repo}/actions/secrets/{name}");
         req1.Content = JsonContent(new UpsertReq(encB64, pk.key_id));
 
-        var resp = await _http.SendAsync(req1);
-        resp.EnsureSuccessStatusCode(); // 201/204 indicates success
+        HttpResponseMessage resp;
+        string body;
+        try
+        {
+            resp = await _http.SendAsync(req1);
+            body = await resp.Content.ReadAsStringAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($" [ERROR] Network error when updating secret: {ex.Message}");
+            return false;
+        }
+
+        if (!resp.IsSuccessStatusCode)
+        {
+            var hint = ExtractErrorHint(body);
+            switch ((int)resp.StatusCode)
+            {
+                case 401:
+                    Console.WriteLine($" [ERROR] 401 Unauthorized when updating secret. Token invalid/expired or missing required scopes. {hint}");
+                    break;
+                case 403:
+                    Console.WriteLine($" [ERROR] 403 Forbidden when updating secret. Token lacks 'Secrets: write' (fine-grained) or 'repo' (classic), or repo not selected. {hint}");
+                    break;
+                case 404:
+                    Console.WriteLine($" [ERROR] 404 Not Found when updating secret. Verify REPO and repository access. {hint}");
+                    break;
+                case 422:
+                    Console.WriteLine($" [ERROR] 422 Validation failed when updating secret. Ensure key_id matches the latest public key and payload format is correct. {hint}");
+                    break;
+                case 429:
+                    Console.WriteLine($" [ERROR] 429 Rate limited when updating secret. Please retry later. {hint}");
+                    break;
+                default:
+                    Console.WriteLine($" [ERROR] Update secret failed: {(int)resp.StatusCode}. {hint}");
+                    break;
+            }
+            return false;
+        }
+
+        Console.WriteLine($" [OK] Secret '{name}' updated successfully for {owner_repo} (HTTP {(int)resp.StatusCode}).");
+        return true;
+    }
+    
+    /// <summary>
+    /// best-effort to surface GitHub error message
+    /// </summary>
+    /// <param name="json"></param>
+    /// <returns></returns>
+    static string ExtractErrorHint(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var msg = root.TryGetProperty("message", out var m) ? m.GetString() : null;
+            var url = root.TryGetProperty("documentation_url", out var u) ? u.GetString() : null;
+            if (!string.IsNullOrWhiteSpace(msg) || !string.IsNullOrWhiteSpace(url))
+                return $"Message: {msg ?? "-"} | Doc: {url ?? "-"}";
+        }
+        catch { /* ignore */ }
+        return $"Body: {json}";
     }
 
     // ============== Microsoft Graph API Endpoints ==============
@@ -545,7 +654,13 @@ public class Program
         if (loadedFromEnv)
         {
             var oneLine = JsonSerializer.Serialize(cfg.Accounts, ConfigContext.Default.ListAccountConfig);
-            await UpsertGitHubSecretAsync("ACCOUNTS_JSON", oneLine);
+            var ok = await UpsertGitHubSecretAsync("ACCOUNTS_JSON", oneLine);
+            if (!ok)
+            {
+                Console.WriteLine(" [FATAL] Refresh workflow failed: unable to update repository secret. Verify PAT validity, scopes and repo selection.");
+                Environment.Exit(1); // Fail GitHub Actions to alert manual intervention
+                return false;
+            }
             Console.WriteLine($" [INFO] Updated ACCOUNTS_JSON in GitHub Secrets.");
         }
         else
