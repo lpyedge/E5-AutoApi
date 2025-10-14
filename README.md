@@ -224,6 +224,7 @@ dotnet run -- refresh
 ```
 
 
+
 ## GitHub Actions 整合
 
 ### 設定工作流程權限
@@ -231,6 +232,12 @@ dotnet run -- refresh
 1. 導航至儲存庫**設定** > **Actions** > **一般**
 2. 在**工作流程權限**下,勾選**讀取和寫入權限**
 3. 儲存變更
+
+### 建立 PAT (Personal access token)
+
+1. 前往 Settings → Developer settings → Personal access tokens → Fine‑grained tokens → Generate new token，填寫名稱後建立令牌。​
+2. 在 Repository access 選擇 Only select repositories，稍後挑選需要操作的目標儲存庫以避免過度授權。
+3. 點選Generate token按鈕並儲存產生的token,只會顯示一次,務必提前儲存到本地.稍微需要設定到儲存庫的Secrets中.
 
 ### 配置 Secrets
 
@@ -240,8 +247,7 @@ dotnet run -- refresh
 | Secret | 說明 |
 | :-- | :-- |
 | ACCOUNTS_JSON | 帳戶配置的 JSON 陣列 |
-| GH_TOKEN | 具有 `repo` 範圍的 GitHub 個人存取令牌 |
-| GH_REPO | 格式為 `owner/repo` 的儲存庫 |
+| PAT | 之前建立的Personal access token |
 
 **ACCOUNTS_JSON 範例**:
 
