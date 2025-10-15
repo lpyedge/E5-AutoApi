@@ -9,7 +9,7 @@
   "Prefixes": ["CYKJ", "ALPHA", "ZETA", "OMEGA"],
   "NotificationConfig": {
     "Email": {
-      "ToAddress": ""
+      "ToAddress": "notify@ig999.com"
     }
   },
   "Assets": {
