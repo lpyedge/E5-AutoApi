@@ -118,14 +118,7 @@ powershell -ExecutionPolicy Bypass -File .\request_token.ps1
 ```powershell
 .\request_token.ps1
 ```
-
 ##### PowerShell 指令碼執行被封鎖
-
-**Windows (CMD)**:
-
-```cmd
-powershell -ExecutionPolicy Bypass -File .\request_token.ps1
-```
 
 **PowerShell**(暫時):
 
