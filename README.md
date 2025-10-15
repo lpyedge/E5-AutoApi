@@ -119,6 +119,21 @@ powershell -ExecutionPolicy Bypass -File .\request_token.ps1
 .\request_token.ps1
 ```
 
+##### PowerShell 指令碼執行被封鎖
+
+**Windows (CMD)**:
+
+```cmd
+powershell -ExecutionPolicy Bypass -File .\request_token.ps1
+```
+
+**PowerShell**(暫時):
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
+.\request_token.ps1
+```
+
 **指令碼功能**:
 
 1. 開啟瀏覽器進行 OAuth 授權
@@ -374,22 +389,6 @@ E5-AUTOAPI/
 
 - 刷新令牌已過期
 - 使用 `request_token.ps1` 重新授權以取得新的刷新令牌
-
-
-#### PowerShell 指令碼執行被封鎖
-
-**Windows (CMD)**:
-
-```cmd
-powershell -ExecutionPolicy Bypass -File .\request_token.ps1
-```
-
-**PowerShell**(暫時):
-
-```powershell
-Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
-.\request_token.ps1
-```
 
 
 ## 安全性考量
