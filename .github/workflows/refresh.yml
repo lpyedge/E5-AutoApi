@@ -52,32 +52,21 @@ jobs:
         shell: bash
         run: |        
           set -e
+
+          echo "Prepend refresh.log with timestamp: ${TS}"
           TS="$(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-          echo "Last refresh token succeeded at ${TS}" > refresh.log
-          echo "Wrote refresh.log with timestamp: ${TS}"
+          if [ -f refresh.log ]; then
+            { echo "Last refresh token succeeded at ${TS}"; cat refresh.log; } > refresh.log.tmp && mv refresh.log.tmp refresh.log
+          else
+            echo "Last refresh token succeeded at ${TS}" > refresh.log
+          fi
+          
           
           # Configure git user for commit
           git config --global user.name  "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
           # Stage the file
-          git add refresh.log
-          
-          # Check if there's anything to commit
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          
-          # Commit the change locally first
-          COMMIT_MSG="refresh log updated at ${TS}"
-          git commit -m "chore: ${COMMIT_MSG}"
-          echo "Committed refresh.log locally"
-          
-          # Pull with rebase to incorporate any remote changes
-          # This works now because the local change is already committed
-          git pull --rebase origin ${{ github.ref_name }} || {
-            echo "Rebase conflict detected, attempting merge strategy"
-            git rebase --abort
-            git pull --no-rebase origin ${{ github.ref_name }}
-          }
+          git add .
+          git commit -m "refresh logs" || echo "No changes to commit"
+          git push
