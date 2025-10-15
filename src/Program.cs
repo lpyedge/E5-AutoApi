@@ -1096,7 +1096,7 @@ public class Program
             
             if (!listResp.IsSuccessStatusCode)
             {
-                Console.WriteLine($"FAIL: Create task list failed: {listResp.StatusCode}");
+                Console.WriteLine($" [FAIL] Create task list failed: {listResp.StatusCode}");
                 return;
             }
             
@@ -1105,7 +1105,7 @@ public class Program
             
             if (string.IsNullOrWhiteSpace(listId))
             {
-                Console.WriteLine("FAIL: List has no id");
+                Console.WriteLine(" [FAIL] List has no id");
                 return;
             }
             
@@ -1121,7 +1121,7 @@ public class Program
             
             if (!taskResp.IsSuccessStatusCode)
             {
-                Console.WriteLine($"FAIL: Create task failed: {taskResp.StatusCode}");
+                Console.WriteLine($" [FAIL] Create task failed: {taskResp.StatusCode}");
                 return;
             }
             
@@ -1130,7 +1130,7 @@ public class Program
             
             if (string.IsNullOrWhiteSpace(taskId))
             {
-                Console.WriteLine("FAIL: Task has no id");
+                Console.WriteLine(" [FAIL] Task has no id");
                 return;
             }
             
@@ -1144,8 +1144,8 @@ public class Program
             using var completeResp = await _http.SendAsync(completeReq);
             
             Console.WriteLine(completeResp.IsSuccessStatusCode 
-                ? "OK: Task completion test completed." 
-                : $"WARN: Task completion failed: {completeResp.StatusCode}");
+                ? " [OK] Task completion test completed." 
+                : $" [WARN] Task completion failed: {completeResp.StatusCode}");
         }
         finally
         {
@@ -1236,7 +1236,7 @@ public class Program
             
             if (!resp.IsSuccessStatusCode)
             {
-                Console.WriteLine($"FAIL: Create event failed: {resp.StatusCode}");
+                Console.WriteLine($" [FAIL] Create event failed: {resp.StatusCode}");
                 return;
             }
             
@@ -1245,7 +1245,7 @@ public class Program
             
             if (string.IsNullOrWhiteSpace(eventId))
             {
-                Console.WriteLine("FAIL: Event has no id");
+                Console.WriteLine(" [FAIL] Event has no id");
                 return;
             }
             
@@ -1264,8 +1264,8 @@ public class Program
             using var acceptResp = await _http.SendAsync(acceptReq);
             
             Console.WriteLine(acceptResp.IsSuccessStatusCode 
-                ? "OK: Event acceptance completed." 
-                : $"WARN: Event accept failed: {acceptResp.StatusCode}");
+                ? " [OK] Event acceptance completed." 
+                : $" [WARN] Event accept failed: {acceptResp.StatusCode}");
         }
         finally
         {
@@ -1294,7 +1294,7 @@ public class Program
             {
                 displayName,
                 givenName = prefix,
-                emailAddresses = new[] { new { address = "foo@example.com", name = "Foo" } }
+                emailAddresses = new[] { new { address = _cfg.Notification.Email.ToAddress, name = "Foo" } }
             };
 
             using var req = new HttpRequestMessage(HttpMethod.Post, EP.Contacts);
@@ -1485,7 +1485,7 @@ public class Program
             
             if (!draftResp.IsSuccessStatusCode)
             {
-                Console.WriteLine($"FAIL: Create draft for forward test failed: {draftResp.StatusCode}");
+                Console.WriteLine($" [FAIL] Create draft for forward test failed: {draftResp.StatusCode}");
                 return;
             }
             
@@ -1494,7 +1494,7 @@ public class Program
             
             if (string.IsNullOrWhiteSpace(messageId))
             {
-                Console.WriteLine("FAIL: Draft message has no id");
+                Console.WriteLine(" [FAIL] Draft message has no id");
                 return;
             }
             
@@ -1504,7 +1504,7 @@ public class Program
             var forwardBody = new
             {
                 comment = "Forwarding test",
-                toRecipients = new[] { new { emailAddress = new { address = "test@example.com" } } }
+                toRecipients = new[] { new { emailAddress = new { address = _cfg.Notification.Email.ToAddress } } }
             };
             
             using var fwdReq = new HttpRequestMessage(HttpMethod.Post, EP.ForwardMessage(messageId!));
@@ -1513,8 +1513,8 @@ public class Program
             using var fwdResp = await _http.SendAsync(fwdReq);
             
             Console.WriteLine(fwdResp.IsSuccessStatusCode 
-                ? "OK: Mail forward test completed." 
-                : $"WARN: Mail forward failed: {fwdResp.StatusCode}");
+                ? " [OK] Mail forward test completed." 
+                : $" [WARN] Mail forward failed: {fwdResp.StatusCode}");
         }
         finally
         {
@@ -1688,7 +1688,7 @@ public class Program
             
             if (!uploadResp.IsSuccessStatusCode)
             {
-                Console.WriteLine($"FAIL: Upload source file failed: {uploadResp.StatusCode}");
+                Console.WriteLine($" [FAIL] Upload source file failed: {uploadResp.StatusCode}");
                 return;
             }
             
@@ -1697,7 +1697,7 @@ public class Program
             
             if (string.IsNullOrWhiteSpace(sourceId))
             {
-                Console.WriteLine("FAIL: Source file has no id");
+                Console.WriteLine(" [FAIL] Source file has no id");
                 return;
             }
             
@@ -1717,12 +1717,12 @@ public class Program
             // Copy 操作是异步的,返回202和Location header
             if ((int)copyResp.StatusCode == 202)
             {
-                Console.WriteLine("OK: File copy initiated (async operation).");
+                Console.WriteLine(" [OK] File copy initiated (async operation).");
                 // 可以从 Location header 获取监控 URL
             }
             else
             {
-                Console.WriteLine($"WARN: File copy failed: {copyResp.StatusCode}");
+                Console.WriteLine($" [WARN] File copy failed: {copyResp.StatusCode}");
             }
         }
         finally
@@ -2500,4 +2500,5 @@ public record UpsertReq(string encrypted_value, string key_id);
 internal partial class ConfigContext : JsonSerializerContext
 {
 }
+
 
