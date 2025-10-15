@@ -142,7 +142,7 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 
 ### 步驟 4:配置應用程式
 
-在專案根目錄建立 `Config.json`:
+`Config.json`:
 
 ```json
 {
@@ -200,6 +200,58 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 }
 ```
 
+## 設定參考
+
+### Accounts(帳戶)
+
+包含 OAuth 憑證的 Microsoft 365 帳戶陣列。
+
+
+| 欄位 | 類型 | 必要 | 說明 |
+| :-- | :-- | :-- | :-- |
+| ClientId | string | 是 | Azure AD 的應用程式(用戶端)ID |
+| ClientSecret | string | 是* | 用戶端密碼值(*機密用戶端需要) |
+| RefreshToken | string | 是 | 透過授權流程取得的 OAuth 刷新令牌 |
+
+### Run(執行配置)
+
+控制執行流程和操作之間的時間間隔。
+
+
+| 屬性 | 說明 |
+| :-- | :-- |
+| Rounds | 每個帳戶的執行輪數 |
+| ApiDelay | 個別 API 呼叫之間的延遲 |
+| RoundsDelay | 執行輪次之間的延遲 |
+| AccountDelay | 不同帳戶之間的延遲 |
+
+### Features(功能配置)
+
+#### 讀取功能
+
+| 屬性 | 類型 | 預設值 | 說明 |
+| :-- | :-- | :-- | :-- |
+| TaskMin | int | 8 | 要執行的最小讀取端點數量 |
+| UseExtendedApis | bool | true | 啟用擴充 API 呼叫(需要額外權限) |
+
+#### 寫入功能
+
+切換個別寫入操作:
+
+
+| 屬性 | 說明 |
+| :-- | :-- |
+| UploadRandomFile | 上傳和刪除測試檔案 |
+| Excel | Excel 活頁簿操作 |
+| Todo | 待辦事項清單操作 |
+| CalendarEvent | 行事曆事件 CRUD |
+| Contacts | 聯絡人 CRUD |
+| MailDraft | 郵件草稿操作 |
+| MailFolder | 郵件資料夾管理 |
+| MailRule | 收件匣規則管理 |
+| OneNotePage | OneNote 頁面操作 |
+| DriveFolderWithShareLink | OneDrive 共用 |
+| UserOpenExtension | 使用者擴充操作 |
 
 ### 步驟 5:執行應用程式
 
@@ -298,60 +350,6 @@ E5-AUTOAPI/
 ├── README.md               # 專案說明文件
 └── LICENSE                 # 授權條款
 ```
-
-
-## 設定參考
-
-### Accounts(帳戶)
-
-包含 OAuth 憑證的 Microsoft 365 帳戶陣列。
-
-
-| 欄位 | 類型 | 必要 | 說明 |
-| :-- | :-- | :-- | :-- |
-| ClientId | string | 是 | Azure AD 的應用程式(用戶端)ID |
-| ClientSecret | string | 是* | 用戶端密碼值(*機密用戶端需要) |
-| RefreshToken | string | 是 | 透過授權流程取得的 OAuth 刷新令牌 |
-
-### Run(執行配置)
-
-控制執行流程和操作之間的時間間隔。
-
-
-| 屬性 | 說明 |
-| :-- | :-- |
-| Rounds | 每個帳戶的執行輪數 |
-| ApiDelay | 個別 API 呼叫之間的延遲 |
-| RoundsDelay | 執行輪次之間的延遲 |
-| AccountDelay | 不同帳戶之間的延遲 |
-
-### Features(功能配置)
-
-#### 讀取功能
-
-| 屬性 | 類型 | 預設值 | 說明 |
-| :-- | :-- | :-- | :-- |
-| TaskMin | int | 8 | 要執行的最小讀取端點數量 |
-| UseExtendedApis | bool | true | 啟用擴充 API 呼叫(需要額外權限) |
-
-#### 寫入功能
-
-切換個別寫入操作:
-
-
-| 屬性 | 說明 |
-| :-- | :-- |
-| UploadRandomFile | 上傳和刪除測試檔案 |
-| Excel | Excel 活頁簿操作 |
-| Todo | 待辦事項清單操作 |
-| CalendarEvent | 行事曆事件 CRUD |
-| Contacts | 聯絡人 CRUD |
-| MailDraft | 郵件草稿操作 |
-| MailFolder | 郵件資料夾管理 |
-| MailRule | 收件匣規則管理 |
-| OneNotePage | OneNote 頁面操作 |
-| DriveFolderWithShareLink | OneDrive 共用 |
-| UserOpenExtension | 使用者擴充操作 |
 
 ## 常見問題排解
 
