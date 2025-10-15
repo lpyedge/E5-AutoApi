@@ -200,9 +200,9 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 }
 ```
 
-## 設定參考
+### 設定參考
 
-### Accounts(帳戶)
+#### Accounts(帳戶)
 
 包含 OAuth 憑證的 Microsoft 365 帳戶陣列。
 
@@ -213,7 +213,7 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 | ClientSecret | string | 是* | 用戶端密碼值(*機密用戶端需要) |
 | RefreshToken | string | 是 | 透過授權流程取得的 OAuth 刷新令牌 |
 
-### Run(執行配置)
+#### Run(執行配置)
 
 控制執行流程和操作之間的時間間隔。
 
@@ -225,16 +225,16 @@ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process
 | RoundsDelay | 執行輪次之間的延遲 |
 | AccountDelay | 不同帳戶之間的延遲 |
 
-### Features(功能配置)
+#### Features(功能配置)
 
-#### 讀取功能
+##### 讀取功能
 
 | 屬性 | 類型 | 預設值 | 說明 |
 | :-- | :-- | :-- | :-- |
 | TaskMin | int | 8 | 要執行的最小讀取端點數量 |
 | UseExtendedApis | bool | true | 啟用擴充 API 呼叫(需要額外權限) |
 
-#### 寫入功能
+##### 寫入功能
 
 切換個別寫入操作:
 
