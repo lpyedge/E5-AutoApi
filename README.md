@@ -200,27 +200,27 @@ powershell -ExecutionPolicy Bypass -File .\request_token.ps1
 **僅讀取模式**:
 
 ```bash
-dotnet run -- read
+dotnet run Program.cs read
 ```
 
 **僅寫入模式**:
 
 ```bash
-dotnet run -- write
+dotnet run Program.cs write
 ```
 
 **兩種模式**(預設):
 
 ```bash
-dotnet run
+dotnet run Program.cs
 # 或
-dotnet run -- both
+dotnet run Program.cs both
 ```
 
 **僅刷新令牌**:
 
 ```bash
-dotnet run -- refresh
+dotnet run Program.cs refresh
 ```
 
 
